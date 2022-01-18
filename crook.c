@@ -12,7 +12,7 @@ typedef struct list
 typedef struct cell
 {
     int val;
-    list poss; // possible values list from 0 to n where n is size of sudoku (0 means no possible value)
+    list *poss; // possible values list from 1 to n where n is size of sudoku
 } cell;
 
 cell **readSudoku(int *n, const char *filename)
@@ -40,11 +40,11 @@ cell **readSudoku(int *n, const char *filename)
             (matrix[i] + j)->val = t; //value of cell is the same as the value in the file
             if (t == 0)               //if it's a void cell (has value 0)
             {
-                //create list of possible values (from 2 to 9)
+                //create a list of all possible values (from 1 to 9)
                 list *last = (list *)malloc(sizeof(list));
                 last->val = *n;
                 last->next = NULL;
-                for (int i = *n; i > 1; i--)
+                for (int i = *n - 1; i > 0; i--)
                 {
                     list *new = (list *)malloc(sizeof(list));
                     new->val = i;
@@ -53,14 +53,12 @@ cell **readSudoku(int *n, const char *filename)
                 }
 
                 //add all possible values (from 1 to 9)
-                (matrix[i] + j)->poss.val = 1;
-                (matrix[i] + j)->poss.next = last;
+                (matrix[i] + j)->poss = last;
             }
             else //if the cell has a value
             {
                 //possible values list is empty
-                (matrix[i] + j)->poss.val = 0;
-                (matrix[i] + j)->poss.next = NULL;
+                (matrix[i] + j)->poss = NULL;
             }
         }
     }
@@ -96,25 +94,74 @@ void printSudokuDebug(cell **matrix, int n, int possibleValues)
         {
             for (size_t j = 0; j < n; ++j)
             {
-                if ((matrix[i] + j)->poss.val == 0)
+                if ((matrix[i] + j)->poss == NULL)
                 {
                     printf("(%d,%d) = %d \n", i, j, (matrix[i] + j)->val);
                 }
                 else
                 {
-                    printf("(%d,%d) = %d ", i, j, (matrix[i] + j)->poss.val);
-                    list *tmp = (matrix[i] + j)->poss.next;
-                    while (tmp != NULL)
+                    printf("(%d,%d) = ", i, j);
+                    list *tmp = (matrix[i] + j)->poss;
+                    while (tmp->next != NULL)
                     {
-                        printf("or %d ", tmp->val);
+                        printf("%d or ", tmp->val);
                         tmp = tmp->next;
                     }
-                    printf("\n");
+                    printf("%d \n", tmp->val);
                 }
             }
             printf("\n");
         }
     }
+}
+
+int findFromList(list *l, int n, list **node, list **prev)
+{
+    if (l == NULL)
+    {
+        return 0;
+    }
+
+    *prev = NULL;
+    *node = l;
+    do
+    {
+        if ((*node)->val == n)
+        {
+            return 1;
+        }
+        *prev = *node;
+        *node = (*node)->next;
+    } while ((*node)->next != NULL);
+
+    return 0;
+}
+
+int removeFromList(list **l, list **node, list **prev)
+{
+    if ((*node) == NULL || (*l) == NULL)
+    {
+        return 0;
+    }
+
+    if ((*prev) == NULL)
+    {
+        if ((*node)->next != NULL)
+        {
+            *l = (*node)->next;
+        }
+        else
+        {
+            *l = NULL;
+        }
+        free(*node);
+    }
+    else
+    {
+        (*prev)->next = (*node)->next;
+        free(*node);
+    }
+    return 1;
 }
 
 int main(void)
@@ -129,9 +176,16 @@ int main(void)
     }
     else
     {
-        printSudokuDebug(matrix, n, 0);
+        //printSudokuDebug(matrix, n, 0);
         printSudokuDebug(matrix, n, 1);
     }
+    list *node = NULL;
+    list *prev = NULL;
+    if (findFromList(matrix[0][0].poss, 2, &node, &prev) == 1)
+    {
+        removeFromList(&matrix[0][0].poss, &node, &prev);
+    }
+    printSudokuDebug(matrix, n, 1);
 
     //TODO: freeing memory
 
