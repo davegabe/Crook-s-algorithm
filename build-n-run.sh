@@ -1,4 +1,4 @@
 #!/bin/bash
-rm ./crook.out
-gcc crook.c -o crook.out
+rm -f ./crook.out
+gcc crook.c -o crook.out -lm
 ./crook.out

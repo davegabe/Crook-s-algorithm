@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <math.h>
 
 typedef struct list
 {
@@ -15,7 +16,7 @@ typedef struct cell
     list *poss; // possible values list from 1 to n where n is size of sudoku
 } cell;
 
-cell **readSudoku(int *n, const char *filename)
+cell **readSudoku(int *n, list ***possRows, list ***possColumns, list ***possGrids, const char *filename)
 {
     FILE *fp = fopen(filename, "r");
     cell **matrix = NULL, **tmp;
@@ -27,6 +28,63 @@ cell **readSudoku(int *n, const char *filename)
         char *scan = line;
         sscanf(scan, "%d", n);
         matrix = malloc(*n * sizeof(matrix));
+
+        //create the possible values list for each row
+        *possRows = malloc(*n * sizeof(list *));
+        for (int i = 0; i < *n; i++)
+        {
+            //create a list of all possible values (from 1 to 9)
+            list *last = (list *)malloc(sizeof(list));
+            last->val = *n;
+            last->next = NULL;
+            for (int i = *n - 1; i > 0; i--)
+            {
+                list *new = (list *)malloc(sizeof(list));
+                new->val = i;
+                new->next = last;
+                last = new;
+            }
+
+            (*possRows)[i] = last;
+        }
+
+        //create the possible values list for each column
+        *possColumns = malloc(*n * sizeof(list *));
+        for (int i = 0; i < *n; i++)
+        {
+            //create a list of all possible values (from 1 to 9)
+            list *last = (list *)malloc(sizeof(list));
+            last->val = *n;
+            last->next = NULL;
+            for (int i = *n - 1; i > 0; i--)
+            {
+                list *new = (list *)malloc(sizeof(list));
+                new->val = i;
+                new->next = last;
+                last = new;
+            }
+
+            (*possColumns)[i] = last;
+        }
+
+        //create the possible values list for each cell
+        *possGrids = malloc(*n * sizeof(list *));
+        for (int i = 0; i < *n; i++)
+        {
+            //create a list of all possible values (from 1 to 9)
+            list *last = (list *)malloc(sizeof(list));
+            last->val = *n;
+            last->next = NULL;
+            for (int i = *n - 1; i > 0; i--)
+            {
+                list *new = (list *)malloc(sizeof(list));
+                new->val = i;
+                new->next = last;
+                last = new;
+            }
+
+            (*possGrids)[i] = last;
+        }
     }
 
     // read the sudoku
@@ -68,7 +126,18 @@ cell **readSudoku(int *n, const char *filename)
     return matrix;
 }
 
-void printSudokuDebug(cell **matrix, int n, int possibleValues)
+void printPossList(list *l)
+{
+    list *tmp = l;
+    while (tmp->next != NULL)
+    {
+        printf("%d or ", tmp->val);
+        tmp = tmp->next;
+    }
+    printf("%d \n", tmp->val);
+}
+
+void printSudokuDebug(cell **matrix, list **possRows, list **possColumns, list **possGrids, int n, int possibleValues)
 {
     printf("\n#############################\nSUDOKU ");
     if (possibleValues == 0)
@@ -101,15 +170,17 @@ void printSudokuDebug(cell **matrix, int n, int possibleValues)
                 else
                 {
                     printf("(%d,%d) = ", i, j);
-                    list *tmp = (matrix[i] + j)->poss;
-                    while (tmp->next != NULL)
-                    {
-                        printf("%d or ", tmp->val);
-                        tmp = tmp->next;
-                    }
-                    printf("%d \n", tmp->val);
+                    printPossList((matrix[i] + j)->poss);
                 }
             }
+            printf("Row %d = ", i);
+            printPossList(possRows[i]);
+
+            printf("Grid %d = ", i);
+            printPossList(possGrids[i]);
+
+            printf("Column %i = ", i);
+            printPossList(possColumns[i]);
             printf("\n");
         }
     }
@@ -164,10 +235,19 @@ int removeFromList(list **l, list **node, list **prev)
     return 1;
 }
 
+int getIndexpossGrids(int n, int i, int j)
+{
+    int rowN = sqrt(n);
+    return i / rowN + (j / rowN) * rowN;
+}
+
 int main(void)
 {
     int n = 0;
-    cell **matrix = readSudoku(&n, "sudoku.txt");
+    list **possRows = NULL;
+    list **possColumns = NULL;
+    list **possGrids = NULL;
+    cell **matrix = readSudoku(&n, &possRows, &possColumns, &possGrids, "sudoku.txt");
 
     if (matrix == NULL)
     {
@@ -176,8 +256,8 @@ int main(void)
     }
     else
     {
-        //printSudokuDebug(matrix, n, 0);
-        printSudokuDebug(matrix, n, 1);
+        //printSudokuDebug(matrix, possRows, possColumns, possGrids, n, 0);
+        printSudokuDebug(matrix, possRows, possColumns, possGrids, n, 1);
     }
     list *node = NULL;
     list *prev = NULL;
@@ -185,8 +265,7 @@ int main(void)
     {
         removeFromList(&matrix[0][0].poss, &node, &prev);
     }
-    printSudokuDebug(matrix, n, 1);
-
+    printSudokuDebug(matrix, possRows, possColumns, possGrids, n, 1);
     //TODO: freeing memory
 
     return 0;
