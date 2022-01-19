@@ -272,6 +272,48 @@ int isSolved(cell **sudoku, int n)
     return 1;
 }
 
+void reducePossRow(cell **sudoku, list **possRows, int n, int row, int val)
+{
+    //remove the value from the possible values of the row
+    findAndRemoveList(&(possRows[row]), val);
+
+    //remove the value from the possible values of the cells in the same row
+    for (size_t k = 0; k < n; ++k)
+    {
+        findAndRemoveList(&((sudoku[row] + k)->poss), val);
+    }
+}
+
+void reducePossColumn(cell **sudoku, list **possColumns, int n, int col, int val)
+{
+    //remove the value from the possible values of the column
+    findAndRemoveList(&(possColumns[col]), val);
+
+    //remove the value from the possible values of the cells in the same column
+    for (size_t k = 0; k < n; ++k)
+    {
+        findAndRemoveList(&((sudoku[k] + col)->poss), val);
+    }
+}
+
+void reducePossGrid(cell **sudoku, list **possGrids, int n, int grid, int val)
+{
+    //remove the value from the possible values of the grid
+    findAndRemoveList(&(possGrids[grid]), val);
+
+    //remove the value from the possible values of the cells in the same grid
+    int rowN = sqrt(n);
+    int startI = grid / rowN * rowN;
+    int startJ = grid % rowN * rowN;
+    for (size_t k = 0; k < rowN; ++k)
+    {
+        for (size_t l = 0; l < rowN; ++l)
+        {
+            findAndRemoveList(&((sudoku[startI + k] + startJ + l)->poss), val);
+        }
+    }
+}
+
 void reducePoss(cell **sudoku, list **possRows, list **possColumns, list **possGrids, int n)
 {
     for (size_t i = 0; i < n; ++i)
@@ -281,38 +323,11 @@ void reducePoss(cell **sudoku, list **possRows, list **possColumns, list **possG
             if ((sudoku[i] + j)->val != 0)
             {
                 //remove the value from the possible values of the row
-                findAndRemoveList(&(possRows[i]), (sudoku[i] + j)->val);
-
+                reducePossRow(sudoku, possRows, n, i, (sudoku[i] + j)->val);
                 //remove the value from the possible values of the column
-                findAndRemoveList(&(possColumns[j]), (sudoku[i] + j)->val);
-
+                reducePossColumn(sudoku, possColumns, n, j, (sudoku[i] + j)->val);
                 //remove the value from the possible values of the grid
-                findAndRemoveList(&(possGrids[getIndexPossGrid(n, i, j)]), (sudoku[i] + j)->val);
-
-                //remove the value from the possible values of the cells in the same row
-                for (size_t k = 0; k < n; ++k)
-                {
-                    findAndRemoveList(&((sudoku[i] + k)->poss), (sudoku[i] + j)->val);
-                }
-
-                //remove the value from the possible values of the cells in the same column
-                for (size_t k = 0; k < n; ++k)
-                {
-                    findAndRemoveList(&((sudoku[k] + j)->poss), (sudoku[i] + j)->val);
-                }
-
-                //remove the value from the possible values of the cells in the same grid
-                int index = getIndexPossGrid(n, i, j);
-                int rowN = sqrt(n);
-                int startI = index / rowN * rowN;
-                int startJ = index % rowN * rowN;
-                for (size_t k = 0; k < rowN; ++k)
-                {
-                    for (size_t l = 0; l < rowN; ++l)
-                    {
-                        findAndRemoveList(&((sudoku[startI + k] + startJ + l)->poss), (sudoku[i] + j)->val);
-                    }
-                }
+                reducePossColumn(sudoku, possGrids, n, getIndexPossGrid(n, i, j), (sudoku[i] + j)->val);
             }
         }
     }
@@ -332,7 +347,30 @@ int solveSingleton(cell **sudoku, list **possRows, list **possColumns, list **po
                     (sudoku[i] + j)->val = (sudoku[i] + j)->poss->val;
                     findAndRemoveList(&(possRows[i]), (sudoku[i] + j)->val);
                     changed = 1;
+
+                    //remove the value from the possible values of the row
+                    reducePossRow(sudoku, possRows, n, i, (sudoku[i] + j)->val);
+                    //remove the value from the possible values of the column
+                    reducePossColumn(sudoku, possColumns, n, j, (sudoku[i] + j)->val);
+                    //remove the value from the possible values of the grid
+                    reducePossColumn(sudoku, possGrids, n, getIndexPossGrid(n, i, j), (sudoku[i] + j)->val);
                 }
+            }
+        }
+    }
+    return changed;
+}
+
+int solveLoneRangers(cell **sudoku, list **possRows, list **possColumns, list **possGrids, int n)
+{
+    int changed = 0;
+    for (size_t i = 0; i < n; ++i)
+    {
+        //for each row: check if there is only one cell for a possRows value
+        for (size_t j = 0; j < n; ++j)
+        {
+            if ((sudoku[i] + j)->val == 0) //if it's a void cell
+            {
             }
         }
     }
@@ -346,6 +384,7 @@ void solveSudoku(cell **sudoku, list **possRows, list **possColumns, list **poss
     {
         changed = 0;
         changed += solveSingleton(sudoku, possRows, possColumns, possGrids, n);
+        changed += solveLoneRangers(sudoku, possRows, possColumns, possGrids, n);
     } while (changed != 0);
 }
 
