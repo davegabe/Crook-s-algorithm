@@ -135,6 +135,7 @@ void printPossList(list *l)
 {
     if (l == NULL)
     {
+        printf("ERROR (EMPTY LIST) \n");
         return;
     }
 
@@ -357,7 +358,7 @@ int findAndRemoveListCount(listCount **l, int n)
 int getIndexPossGrid(int n, int i, int j)
 {
     int rowN = sqrt(n);
-    return i / rowN + (j / rowN) * rowN;
+    return (i / rowN) * rowN + j / rowN;
 }
 
 int isSolved(cell **sudoku, int n)
@@ -484,6 +485,8 @@ int solveSingleton(cell **sudoku, listCount **possRows, listCount **possColumns,
                         reducePossColumn(sudoku, possColumns, n, j, sudoku[i] + j);
                         //remove the value from the possible values of the grid
                         reducePossGrid(sudoku, possGrids, n, getIndexPossGrid(n, i, j), sudoku[i] + j);
+                        //destroy poss list
+                        destroyList(&((sudoku[i] + j)->poss));
                     }
                 }
             }
@@ -604,6 +607,7 @@ void solveSudoku(cell **sudoku, listCount **possRows, listCount **possColumns, l
         changed = 0;
         changed += solveSingleton(sudoku, possRows, possColumns, possGrids, n);
         changed += solveLoneRangers(sudoku, possRows, possColumns, possGrids, n);
+        printf("%d\n", changed);
     } while (changed != 0);
 }
 
@@ -624,7 +628,7 @@ int main(void)
     reducePoss(sudoku, possRows, possColumns, possGrids, n);
     solveSudoku(sudoku, possRows, possColumns, possGrids, n);
 
-    printSudokuDebug(sudoku, possRows, possColumns, possGrids, n, 0);
+    printSudokuDebug(sudoku, possRows, possColumns, possGrids, n, 1);
 
     if (isSolved(sudoku, n) == 1)
     {
