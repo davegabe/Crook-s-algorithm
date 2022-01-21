@@ -119,15 +119,22 @@ int findAndRemoveListCount(listCount **l, int n)
 void reduceListCount(listCount **possCount, list *poss, int i)
 {
     listCount *nodeCount = possCount[i];
-    for (list *node = poss; node != NULL; node = node->next)
+    listCount *prevCount = NULL;
+    for (list *node = poss; node != NULL && nodeCount != NULL; node = node->next)
     {
         while (nodeCount->val < node->val)
         {
+            prevCount = nodeCount;
             nodeCount = nodeCount->next;
         }
         if (nodeCount->val == node->val)
         {
-            findAndRemoveListCount(&(possCount[i]), nodeCount->val);
+            if (--(nodeCount->count) == 0)
+            {
+                listCount *nextCount = nodeCount->next;
+                removeListCount(possCount + i, &nodeCount, &prevCount);
+                nodeCount = nextCount;
+            }
         }
     }
 }

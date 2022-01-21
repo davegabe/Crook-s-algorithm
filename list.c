@@ -108,3 +108,63 @@ int findAndRemoveList(list **l, int n)
     }
     return 0;
 }
+
+int lengthList(list *l)
+{
+    int len = 0;
+    while (l != NULL)
+    {
+        len++;
+        l = l->next;
+    }
+    return len;
+}
+
+int isEqualList(list *l1, list *l2)
+{
+    while (l1 != NULL && l2 != NULL)
+    {
+        if (l1->val != l2->val)
+        {
+            return 0;
+        }
+        l1 = l1->next;
+        l2 = l2->next;
+    }
+    if (l1 != l2)
+    {
+        return 0;
+    }
+    return 1;
+}
+
+//Remove elements from l1 that are in l2. Return 1 if removed something, 0 otherwise.
+int reduceList(list **l1, list *l2)
+{
+    int changed = 0;
+    list *node = *l1;
+    list *prev = NULL;
+    while (node != NULL && l2 != NULL)
+    {
+        if (node->val == l2->val)
+        {
+            list *next = node->next;
+            removeList(l1, &node, &prev);
+            node = next;
+            l2 = l2->next;
+            changed = 1;
+        }
+        else
+        {
+            if (node->val > l2->val)
+            {
+                l2 = l2->next;
+            }
+            else
+            {
+                node = node->next;
+            }
+        }
+        return changed;
+    }
+}
