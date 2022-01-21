@@ -23,6 +23,38 @@ typedef struct cell
     list *poss; // possible values list from 1 to n where n is size of sudoku
 } cell;
 
+listCount *getListCount(int n)
+{
+    listCount *last = (listCount *)malloc(sizeof(listCount));
+    last->val = n;
+    last->count = n;
+    last->next = NULL;
+    for (int i = n - 1; i > 0; i--)
+    {
+        listCount *new = (listCount *)malloc(sizeof(listCount));
+        new->val = i;
+        new->count = n;
+        new->next = last;
+        last = new;
+    }
+    return last;
+}
+
+list *getList(int n)
+{
+    list *last = (list *)malloc(sizeof(list));
+    last->val = n;
+    last->next = NULL;
+    for (int i = n - 1; i > 0; i--)
+    {
+        list *new = (list *)malloc(sizeof(list));
+        new->val = i;
+        new->next = last;
+        last = new;
+    }
+    return last;
+}
+
 cell **readSudoku(int *n, listCount ***possRows, listCount ***possColumns, listCount ***possGrids, const char *filename)
 {
     FILE *fp = fopen(filename, "r");
@@ -36,99 +68,44 @@ cell **readSudoku(int *n, listCount ***possRows, listCount ***possColumns, listC
         sscanf(scan, "%d", n);
         sudoku = malloc(*n * sizeof(sudoku));
 
-        //create the possible values listCount for each row
         *possRows = malloc(*n * sizeof(listCount *));
-        for (int i = 0; i < *n; i++)
-        {
-            //create a listCount of all possible values (from 1 to 9)
-            listCount *last = (listCount *)malloc(sizeof(listCount));
-            last->val = *n;
-            last->count = *n;
-            last->next = NULL;
-            for (int i = *n - 1; i > 0; i--)
-            {
-                listCount *new = (listCount *)malloc(sizeof(listCount));
-                new->val = i;
-                new->count = *n;
-                new->next = last;
-                last = new;
-            }
-
-            (*possRows)[i] = last;
-        }
-
-        //create the possible values listCount for each column
         *possColumns = malloc(*n * sizeof(listCount *));
-        for (int i = 0; i < *n; i++)
-        {
-            //create a listCount of all possible values (from 1 to 9)
-            listCount *last = (listCount *)malloc(sizeof(listCount));
-            last->val = *n;
-            last->count = *n;
-            last->next = NULL;
-            for (int i = *n - 1; i > 0; i--)
-            {
-                listCount *new = (listCount *)malloc(sizeof(listCount));
-                new->val = i;
-                new->count = *n;
-                new->next = last;
-                last = new;
-            }
-
-            (*possColumns)[i] = last;
-        }
-
-        //create the possible values listCount for each cell
         *possGrids = malloc(*n * sizeof(listCount *));
         for (int i = 0; i < *n; i++)
         {
             //create a listCount of all possible values (from 1 to 9)
-            listCount *last = (listCount *)malloc(sizeof(listCount));
-            last->val = *n;
-            last->count = *n;
-            last->next = NULL;
-            for (int i = *n - 1; i > 0; i--)
-            {
-                listCount *new = (listCount *)malloc(sizeof(listCount));
-                new->val = i;
-                new->count = *n;
-                new->next = last;
-                last = new;
-            }
+            listCount *last = getListCount(*n);
+            (*possRows)[i] = last;
 
+            //create the possible values listCount for each column
+            last = getListCount(*n);
+            (*possColumns)[i] = last;
+
+            //create the possible values listCount for each cell
+            last = getListCount(*n);
             (*possGrids)[i] = last;
         }
-    }
 
-    // read the sudoku
-    for (size_t i = 0; i < *n; ++i)
-    {
-        sudoku[i] = calloc(*n, sizeof(cell));
-        for (size_t j = 0; j < *n; ++j)
+        // read the sudoku
+        for (size_t i = 0; i < *n; ++i)
         {
-            int t;
-            fscanf(fp, "%d", &t);
-            (sudoku[i] + j)->val = t; //value of cell is the same as the value in the file
-            //create a list of all possible values (from 1 to 9)
-            list *last = (list *)malloc(sizeof(list));
-            last->val = *n;
-            last->next = NULL;
-            for (int i = *n - 1; i > 0; i--)
+            sudoku[i] = calloc(*n, sizeof(cell));
+            for (size_t j = 0; j < *n; ++j)
             {
-                list *new = (list *)malloc(sizeof(list));
-                new->val = i;
-                new->next = last;
-                last = new;
+                int t;
+                fscanf(fp, "%d", &t);
+                //value of cell is the same as the value in the file
+                (sudoku[i] + j)->val = t;
+                //create a list of all possible values (from 1 to 9)
+                list *last = getList(*n);
+                (sudoku[i] + j)->poss = last;
             }
-
-            //add all possible values (from 1 to 9)
-            (sudoku[i] + j)->poss = last;
         }
+
+        fclose(fp);
+
+        return sudoku;
     }
-
-    fclose(fp);
-
-    return sudoku;
 }
 
 void printPossList(list *l)
@@ -284,13 +261,13 @@ int findAndRemoveList(list **l, int n)
     return 0;
 }
 
-void destroyListCount(listCount *l)
+void destroyListCount(listCount **l)
 {
-    listCount *tmp = l;
-    while (l != NULL)
+    listCount *tmp = *l;
+    while (*l != NULL)
     {
-        tmp = l;
-        l = l->next;
+        tmp = *l;
+        *l = (*l)->next;
         free(tmp);
     }
 }
@@ -344,7 +321,7 @@ int removeListCount(listCount **l, listCount **node, listCount **prev)
     return 1;
 }
 
-void findAndRemoveListCount(listCount **l, int n)
+int findAndRemoveListCount(listCount **l, int n)
 {
     listCount *node = NULL;
     listCount *prev = NULL;
@@ -354,7 +331,9 @@ void findAndRemoveListCount(listCount **l, int n)
         {
             removeListCount(l, &node, &prev);
         }
+        return 1;
     }
+    return 0;
 }
 
 int getIndexPossGrid(int n, int i, int j)
@@ -363,10 +342,15 @@ int getIndexPossGrid(int n, int i, int j)
     return (i / rowN) * rowN + j / rowN;
 }
 
-int isSolved(cell **sudoku, int n)
+int isSolved(cell **sudoku, listCount **possRows, listCount **possColumns, listCount **possGrids, int n)
 {
     for (size_t i = 0; i < n; ++i)
     {
+        if (possRows[i] != NULL || possColumns[i] != NULL || possGrids[i] != NULL)
+        {
+            return 0;
+        }
+
         for (size_t j = 0; j < n; ++j)
         {
             if ((sudoku[i] + j)->val == 0)
@@ -411,6 +395,8 @@ void reducePossCell(cell **sudoku, listCount **possRows, listCount **possColumns
         //if the cell has val as a possible value, after removing it...
         if (findAndRemoveList(&(sudoku[r] + k)->poss, val) == 1)
         {
+            //remove the value from the possible values of the row
+            findAndRemoveListCount(&(possRows[r]), val);
             //remove the value from the possible values of the column
             findAndRemoveListCount(&(possColumns[k]), val);
             //remove the value from the possible values of the grid
@@ -426,6 +412,8 @@ void reducePossCell(cell **sudoku, listCount **possRows, listCount **possColumns
         {
             //remove the value from the possible values of the row
             findAndRemoveListCount(&(possRows[k]), val);
+            //remove the value from the possible values of the column
+            findAndRemoveListCount(&(possColumns[c]), val);
             //remove the value from the possible values of the grid
             findAndRemoveListCount(&(possGrids[getIndexPossGrid(n, k, c)]), val);
         }
@@ -447,6 +435,8 @@ void reducePossCell(cell **sudoku, listCount **possRows, listCount **possColumns
                 findAndRemoveListCount(&(possRows[startI + k]), val);
                 //remove the value from the possible values of the column
                 findAndRemoveListCount(&(possColumns[startJ + m]), val);
+                //remove the value from the possible values of the grid
+                findAndRemoveListCount(&(possGrids[getIndexPossGrid(n, startI + k, startJ + m)]), val);
             }
         }
     }
@@ -607,10 +597,10 @@ int main(void)
 
     solveSudoku(sudoku, possRows, possColumns, possGrids, n);
 
-    printSudokuDebug(sudoku, possRows, possColumns, possGrids, n, 1);
+    // printSudokuDebug(sudoku, possRows, possColumns, possGrids, n, 1);
     printSudokuDebug(sudoku, possRows, possColumns, possGrids, n, 0);
 
-    if (isSolved(sudoku, n) == 1)
+    if (isSolved(sudoku, possRows, possColumns, possGrids, n) == 1)
     {
         printf("Sudoku solved!\n");
     }
