@@ -6,6 +6,7 @@ typedef struct list
     struct list *next;
 } list;
 
+//Return a linked list with values from 1 to n
 list *getList(int n)
 {
     list *last = (list *)malloc(sizeof(list));
@@ -21,6 +22,7 @@ list *getList(int n)
     return last;
 }
 
+//Print the list l
 void printPossList(list *l)
 {
     if (l == NULL)
@@ -38,6 +40,7 @@ void printPossList(list *l)
     printf("%d \n", tmp->val);
 }
 
+//Destroy the list l
 void destroyList(list **l)
 {
     list *tmp = *l;
@@ -49,6 +52,7 @@ void destroyList(list **l)
     }
 }
 
+//Find the node with value val in the list l and set the pointer to the node to the node before it
 int findList(list *l, int val, list **node, list **prev)
 {
     if (l == NULL)
@@ -71,6 +75,7 @@ int findList(list *l, int val, list **node, list **prev)
     return 0;
 }
 
+//Remove a node from the list
 int removeList(list **l, list **node, list **prev)
 {
     if (*node == NULL || *l == NULL)
@@ -98,6 +103,7 @@ int removeList(list **l, list **node, list **prev)
     return 1;
 }
 
+//Find and removes node with value n from list l
 int findAndRemoveList(list **l, int n)
 {
     list *node = NULL;
@@ -109,6 +115,7 @@ int findAndRemoveList(list **l, int n)
     return 0;
 }
 
+//Return length of the list l
 int lengthList(list *l)
 {
     int len = 0;
@@ -120,6 +127,7 @@ int lengthList(list *l)
     return len;
 }
 
+//Return 1 if l1 == l2, 0 otherwise
 int isEqualList(list *l1, list *l2)
 {
     while (l1 != NULL && l2 != NULL)

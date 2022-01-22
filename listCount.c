@@ -8,6 +8,7 @@ typedef struct listCount
     struct listCount *next;
 } listCount;
 
+//Return a linked list with values from 1 to n and count of each node set to n
 listCount *getListCount(int n)
 {
     listCount *last = (listCount *)malloc(sizeof(listCount));
@@ -25,6 +26,7 @@ listCount *getListCount(int n)
     return last;
 }
 
+//Print the list l with the count of each element
 void printPossListCount(listCount *l)
 {
     if (l == NULL)
@@ -41,6 +43,7 @@ void printPossListCount(listCount *l)
     printf("%d (%d) \n", tmp->val, tmp->count);
 }
 
+//Destroy the list l
 void destroyListCount(listCount **l)
 {
     listCount *tmp = *l;
@@ -52,6 +55,7 @@ void destroyListCount(listCount **l)
     }
 }
 
+//Find the node with value n in the list l and set the pointer to the node to the node before it
 int findListCount(listCount *l, int n, listCount **node, listCount **prev)
 {
     if (l == NULL)
@@ -74,6 +78,7 @@ int findListCount(listCount *l, int n, listCount **node, listCount **prev)
     return 0;
 }
 
+//Remove from list l the node
 int removeListCount(listCount **l, listCount **node, listCount **prev)
 {
     if (*node == NULL || *l == NULL)
@@ -101,6 +106,7 @@ int removeListCount(listCount **l, listCount **node, listCount **prev)
     return 1;
 }
 
+//Find and subtract count (and eventually removes) of node with value n from list l
 int findAndRemoveListCount(listCount **l, int n)
 {
     listCount *node = NULL;
