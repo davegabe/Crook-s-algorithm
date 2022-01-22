@@ -11,6 +11,7 @@ typedef struct cell
     list *poss; // possible values list from 1 to n where n is size of sudoku
 } cell;
 
+//Read sudoku from file and return a 2D array of cells
 cell **readSudoku(int *n, listCount ***possRows, listCount ***possColumns, listCount ***possGrids, const char *filename)
 {
     FILE *fp = fopen(filename, "r");
@@ -64,7 +65,8 @@ cell **readSudoku(int *n, listCount ***possRows, listCount ***possColumns, listC
     }
 }
 
-cell **cloneSudoku(cell **sudoku, int n)
+//Return a copy of sudoku
+cell **cloneSudoku(cell **sudoku, const int n)
 {
     cell **clone = malloc(n * sizeof(cell *));
     for (int i = 0; i < n; i++)
@@ -79,20 +81,23 @@ cell **cloneSudoku(cell **sudoku, int n)
     return clone;
 }
 
-void freeSudoku(cell **sudoku, int n)
+//Destroy and free memory of sudoku (2D array of cells)
+void destroySudoku(cell **sudoku, const int n)
 {
     for (int i = 0; i < n; i++)
     {
         for (int j = 0; j < n; j++)
         {
             destroyList(&(sudoku[i] + j)->poss);
-            free(sudoku[i] + j);
         }
         free(sudoku[i]);
+        sudoku[i] = NULL;
     }
     free(sudoku);
+    sudoku = NULL;
 }
 
+//Return a copy of l (array of listCount)
 listCount **cloneListCountArray(listCount **l, int n)
 {
     listCount **clone = malloc(n * sizeof(listCount *));
@@ -103,10 +108,11 @@ listCount **cloneListCountArray(listCount **l, int n)
     return clone;
 }
 
-void printSudokuDebug(cell **sudoku, listCount **possRows, listCount **possColumns, listCount **possGrids, int n, int possibleValues)
+//Print the sudoku. If debug = 1, print the possible values of each cell, else print the value of each cell.
+void printSudoku(cell **sudoku, listCount **possRows, listCount **possColumns, listCount **possGrids, int n, int debug)
 {
     printf("#############################\nSUDOKU ");
-    if (possibleValues == 0)
+    if (debug == 0)
     {
         printf("(only grid)\n#############################\n");
     }
@@ -117,7 +123,7 @@ void printSudokuDebug(cell **sudoku, listCount **possRows, listCount **possColum
 
     for (size_t i = 0; i < n; ++i)
     {
-        if (possibleValues == 0)
+        if (debug == 0)
         {
             if (i % 3 == 0)
             {
@@ -164,12 +170,14 @@ void printSudokuDebug(cell **sudoku, listCount **possRows, listCount **possColum
     }
 }
 
-int getIndexPossGrid(int n, int i, int j)
+//Return index of grid (from 0 to n-1) where cell (r,c) is located
+int getIndexPossGrid(int n, int r, int c)
 {
     int rowN = sqrt(n);
-    return (i / rowN) * rowN + j / rowN;
+    return (r / rowN) * rowN + c / rowN;
 }
 
+//Set the value of cell (r,c) to val and remove val from the possible values of the cell and the row, column and grid
 void setCell(cell **sudoku, listCount **possRows, listCount **possColumns, listCount **possGrids, int n, int r, int c, int val)
 {
     //set value in sudoku
@@ -236,6 +244,7 @@ void setCell(cell **sudoku, listCount **possRows, listCount **possColumns, listC
     }
 }
 
+//Check if exist a cell with only one possible value and set it. Return 1 if a cell has been set, 0 otherwise. If a cell has no possible values (sudoku unsolvable), return -1.
 int solveSingleton(cell **sudoku, listCount **possRows, listCount **possColumns, listCount **possGrids, int n)
 {
     int changed = 0;
@@ -245,7 +254,7 @@ int solveSingleton(cell **sudoku, listCount **possRows, listCount **possColumns,
         {
             if ((sudoku[i] + j)->val == 0) //if it's a void cell
             {
-                if ((sudoku[i] + j)->poss == NULL) //sudoku not solvable
+                if ((sudoku[i] + j)->poss == NULL) //sudoku unsolvable
                 {
                     return -1;
                 }
@@ -263,6 +272,7 @@ int solveSingleton(cell **sudoku, listCount **possRows, listCount **possColumns,
     return changed;
 }
 
+//Check if exist (for every row, column and grid) a possible value where only one cell is possible. If so, set the value of the cell. Return 1 if a cell has been set, 0 otherwise.
 int solveLoneRangers(cell **sudoku, listCount **possRows, listCount **possColumns, listCount **possGrids, int n)
 {
     int changed = 0;
@@ -346,6 +356,7 @@ int solveLoneRangers(cell **sudoku, listCount **possRows, listCount **possColumn
     return changed;
 }
 
+//Check if exist (for every row, column and grid) a twinSize-tuple of cells with same possibilities of size twinSize
 int solveTwins(cell **sudoku, listCount **possRows, listCount **possColumns, listCount **possGrids, int n, int twinSize)
 {
     int changed = 0;
@@ -523,6 +534,7 @@ int solveTwins(cell **sudoku, listCount **possRows, listCount **possColumns, lis
     return changed;
 }
 
+//Check if the sudoku is solved
 int isSolved(cell **sudoku, listCount **possRows, listCount **possColumns, listCount **possGrids, int n)
 {
     for (size_t i = 0; i < n; ++i)
@@ -543,6 +555,7 @@ int isSolved(cell **sudoku, listCount **possRows, listCount **possColumns, listC
     return 1;
 }
 
+//Try to solve the sudoku. Apply solveSingleton, solveLoneRangers, solveTwins repeating every time changes something. If it doesn't change anything, check if it's solved and return 1. If it's not solved, try guessing a value and solve again.
 cell **solveSudoku(cell **sudoku, listCount **possRows, listCount **possColumns, listCount **possGrids, int n)
 {
     int changed;
@@ -649,15 +662,17 @@ int main(void)
     if (solvedSudoku != NULL)
     {
         printf("Sudoku solved!\n");
-        printSudokuDebug(solvedSudoku, possRows, possColumns, possGrids, n, 0);
+        printSudoku(solvedSudoku, possRows, possColumns, possGrids, n, 0);
     }
     else
     {
         printf("Sudoku not solved!\n");
-        printSudokuDebug(solvedSudoku, possRows, possColumns, possGrids, n, 1);
+        printSudoku(solvedSudoku, possRows, possColumns, possGrids, n, 1);
     }
 
-    //TODO: freeing memory
-
+    destroySudoku(sudoku, n);
+    destroyListCount(possRows);
+    destroyListCount(possColumns);
+    destroyListCount(possGrids);
     return 0;
 }

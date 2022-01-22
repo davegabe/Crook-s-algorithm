@@ -44,12 +44,12 @@ void printPossList(list *l)
 //Destroy the list l
 void destroyList(list **l)
 {
-    list *tmp = *l;
+    list *prev;
     while (*l != NULL)
     {
-        tmp = *l;
+        prev = *l;
         *l = (*l)->next;
-        free(tmp);
+        free(prev);
     }
 }
 
