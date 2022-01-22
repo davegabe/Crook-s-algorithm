@@ -66,7 +66,7 @@ cell **readSudoku(int *n, listCount ***possRows, listCount ***possColumns, listC
 
 void printSudokuDebug(cell **sudoku, listCount **possRows, listCount **possColumns, listCount **possGrids, int n, int possibleValues)
 {
-    printf("\n#############################\nSUDOKU ");
+    printf("#############################\nSUDOKU ");
     if (possibleValues == 0)
     {
         printf("(only grid)\n#############################\n");
@@ -80,11 +80,23 @@ void printSudokuDebug(cell **sudoku, listCount **possRows, listCount **possColum
     {
         if (possibleValues == 0)
         {
+            if (i % 3 == 0)
+            {
+                printf("----------------------\n");
+            }
             for (size_t j = 0; j < n; ++j)
             {
+                if (j % 3 == 0)
+                {
+                    printf("|");
+                }
                 printf("%d ", (sudoku[i] + j)->val);
             }
-            printf("\n");
+            printf("|\n");
+            if (i == n - 1)
+            {
+                printf("----------------------\n\n");
+            }
         }
         else
         {
@@ -474,27 +486,40 @@ int solveTwins(cell **sudoku, listCount **possRows, listCount **possColumns, lis
 
 void solveSudoku(cell **sudoku, listCount **possRows, listCount **possColumns, listCount **possGrids, int n)
 {
-    int changed = 0;
+    int changed;
     do
     {
-        do
+        changed = 0;
+        int changedSingleton = solveSingleton(sudoku, possRows, possColumns, possGrids, n);
+        if (changedSingleton == 1)
         {
-            do
-            {
-                printf("SINGLETON\n");
-                changed = solveSingleton(sudoku, possRows, possColumns, possGrids, n);
-                if (changed == -1)
-                    return;
-            } while (changed > 0);
+            changed = 1;
+            printf("SINGLETON\n");
+            printSudokuDebug(sudoku, possRows, possColumns, possGrids, n, 0);
+        }
+        else if (changed == -1)
+        {
+            return;
+        }
+
+        int changedLoneRangers = solveLoneRangers(sudoku, possRows, possColumns, possGrids, n);
+        if (changedLoneRangers == 1)
+        {
+            changed = 1;
             printf("LONE RANGERS\n");
-            changed = solveLoneRangers(sudoku, possRows, possColumns, possGrids, n);
-        } while (changed > 0);
+            printSudokuDebug(sudoku, possRows, possColumns, possGrids, n, 0);
+        }
+
         for (int twinSize = 2; twinSize < n - 1; twinSize++)
         {
-            printf("TWINS %d\n", twinSize);
-            changed = solveTwins(sudoku, possRows, possColumns, possGrids, n, twinSize);
-            if (changed == 1)
+            int changedTwins = solveTwins(sudoku, possRows, possColumns, possGrids, n, twinSize);
+            if (changedTwins == 1)
+            {
+                changed = 1;
+                printf("TWINS %d\n", twinSize);
+                printSudokuDebug(sudoku, possRows, possColumns, possGrids, n, 0);
                 break;
+            }
         }
     } while (changed > 0);
 }
@@ -525,7 +550,7 @@ int main(void)
     listCount **possRows = NULL;
     listCount **possColumns = NULL;
     listCount **possGrids = NULL;
-    cell **sudoku = readSudoku(&n, &possRows, &possColumns, &possGrids, "sudoku.txt");
+    cell **sudoku = readSudoku(&n, &possRows, &possColumns, &possGrids, "sudoku-willshortz.txt");
 
     if (sudoku == NULL)
     {
