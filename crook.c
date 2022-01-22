@@ -64,6 +64,45 @@ cell **readSudoku(int *n, listCount ***possRows, listCount ***possColumns, listC
     }
 }
 
+cell **cloneSudoku(cell **sudoku, int n)
+{
+    cell **clone = malloc(n * sizeof(cell *));
+    for (int i = 0; i < n; i++)
+    {
+        clone[i] = malloc(n * sizeof(cell));
+        for (int j = 0; j < n; j++)
+        {
+            (clone[i] + j)->val = (sudoku[i] + j)->val;
+            (clone[i] + j)->poss = cloneList((sudoku[i] + j)->poss);
+        }
+    }
+    return clone;
+}
+
+void freeSudoku(cell **sudoku, int n)
+{
+    for (int i = 0; i < n; i++)
+    {
+        for (int j = 0; j < n; j++)
+        {
+            destroyList(&(sudoku[i] + j)->poss);
+            free(sudoku[i] + j);
+        }
+        free(sudoku[i]);
+    }
+    free(sudoku);
+}
+
+listCount **cloneListCountArray(listCount **l, int n)
+{
+    listCount **clone = malloc(n * sizeof(listCount *));
+    for (int i = 0; i < n; i++)
+    {
+        clone[i] = cloneListCount(l[i]);
+    }
+    return clone;
+}
+
 void printSudokuDebug(cell **sudoku, listCount **possRows, listCount **possColumns, listCount **possGrids, int n, int possibleValues)
 {
     printf("#############################\nSUDOKU ");
@@ -484,46 +523,6 @@ int solveTwins(cell **sudoku, listCount **possRows, listCount **possColumns, lis
     return changed;
 }
 
-void solveSudoku(cell **sudoku, listCount **possRows, listCount **possColumns, listCount **possGrids, int n)
-{
-    int changed;
-    do
-    {
-        changed = 0;
-        int changedSingleton = solveSingleton(sudoku, possRows, possColumns, possGrids, n);
-        if (changedSingleton == 1)
-        {
-            changed = 1;
-            printf("SINGLETON\n");
-            printSudokuDebug(sudoku, possRows, possColumns, possGrids, n, 0);
-        }
-        else if (changed == -1)
-        {
-            return;
-        }
-
-        int changedLoneRangers = solveLoneRangers(sudoku, possRows, possColumns, possGrids, n);
-        if (changedLoneRangers == 1)
-        {
-            changed = 1;
-            printf("LONE RANGERS\n");
-            printSudokuDebug(sudoku, possRows, possColumns, possGrids, n, 0);
-        }
-
-        for (int twinSize = 2; twinSize < n - 1; twinSize++)
-        {
-            int changedTwins = solveTwins(sudoku, possRows, possColumns, possGrids, n, twinSize);
-            if (changedTwins == 1)
-            {
-                changed = 1;
-                printf("TWINS %d\n", twinSize);
-                printSudokuDebug(sudoku, possRows, possColumns, possGrids, n, 0);
-                break;
-            }
-        }
-    } while (changed > 0);
-}
-
 int isSolved(cell **sudoku, listCount **possRows, listCount **possColumns, listCount **possGrids, int n)
 {
     for (size_t i = 0; i < n; ++i)
@@ -544,13 +543,89 @@ int isSolved(cell **sudoku, listCount **possRows, listCount **possColumns, listC
     return 1;
 }
 
+cell **solveSudoku(cell **sudoku, listCount **possRows, listCount **possColumns, listCount **possGrids, int n)
+{
+    int changed;
+    do
+    {
+        changed = 0;
+        int changedSingleton = solveSingleton(sudoku, possRows, possColumns, possGrids, n);
+        if (changedSingleton == 1)
+        {
+            changed = 1;
+            // printf("SINGLETON\n");
+        }
+        else if (changed == -1)
+        {
+            return 0;
+        }
+
+        int changedLoneRangers = solveLoneRangers(sudoku, possRows, possColumns, possGrids, n);
+        if (changedLoneRangers == 1)
+        {
+            changed = 1;
+            // printf("LONE RANGERS\n");
+        }
+
+        for (int twinSize = 2; twinSize < n - 1; twinSize++)
+        {
+            int changedTwins = solveTwins(sudoku, possRows, possColumns, possGrids, n, twinSize);
+            if (changedTwins == 1)
+            {
+                changed = 1;
+                // printf("TWINS %d\n", twinSize);
+                break;
+            }
+        }
+    } while (changed > 0);
+
+    if (isSolved(sudoku, possRows, possColumns, possGrids, n) == 1)
+    {
+        return sudoku;
+    }
+    else
+    {
+        //TODO: change to randomly choose a cell with value 0
+        // printf("RANDOM\n");
+        int r, c;
+        //pick the first cell with value 0
+        for (int index = 0; index < n * n; index++)
+        {
+            r = index / n;
+            c = index % n;
+            if ((sudoku[r] + c)->val == 0)
+            {
+                break;
+            }
+        }
+
+        //for each possible value, try to solve the sudoku
+        for (list *l = (sudoku[r] + c)->poss; l != NULL; l = l->next)
+        {
+            cell **sudokuClone = cloneSudoku(sudoku, n);
+            listCount **possRowsClone = cloneListCountArray(possRows, n);
+            listCount **possColumnsClone = cloneListCountArray(possColumns, n);
+            listCount **possGridsClone = cloneListCountArray(possGrids, n);
+            setCell(sudokuClone, possRowsClone, possColumnsClone, possGridsClone, n, r, c, l->val);
+
+            cell **solvedSudoku = solveSudoku(sudokuClone, possRowsClone, possColumnsClone, possGridsClone, n);
+            if (solvedSudoku != NULL)
+            {
+                // freeSudoku(sudoku, n);
+                return solvedSudoku;
+            }
+        }
+    }
+    return NULL;
+}
+
 int main(void)
 {
     int n = 0;
     listCount **possRows = NULL;
     listCount **possColumns = NULL;
     listCount **possGrids = NULL;
-    cell **sudoku = readSudoku(&n, &possRows, &possColumns, &possGrids, "sudoku-willshortz.txt");
+    cell **sudoku = readSudoku(&n, &possRows, &possColumns, &possGrids, "sudoku.txt");
 
     if (sudoku == NULL)
     {
@@ -569,18 +644,17 @@ int main(void)
         }
     }
 
-    solveSudoku(sudoku, possRows, possColumns, possGrids, n);
+    cell **solvedSudoku = solveSudoku(sudoku, possRows, possColumns, possGrids, n);
 
-    printSudokuDebug(sudoku, possRows, possColumns, possGrids, n, 1);
-    printSudokuDebug(sudoku, possRows, possColumns, possGrids, n, 0);
-
-    if (isSolved(sudoku, possRows, possColumns, possGrids, n) == 1)
+    if (solvedSudoku != NULL)
     {
         printf("Sudoku solved!\n");
+        printSudokuDebug(solvedSudoku, possRows, possColumns, possGrids, n, 0);
     }
     else
     {
         printf("Sudoku not solved!\n");
+        printSudokuDebug(solvedSudoku, possRows, possColumns, possGrids, n, 1);
     }
 
     //TODO: freeing memory

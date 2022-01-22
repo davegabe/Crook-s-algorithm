@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 
 typedef struct list
 {
@@ -146,6 +147,24 @@ int isEqualList(list *l1, list *l2)
     return 1;
 }
 
+//Return 1 if l1 is a superset of l2, 0 otherwise
+int isContainedList(list *l1, list *l2)
+{
+    //for each value in l2, if it's not n l1 then return 0 else continue
+    while (l2 != NULL)
+    {
+        list *node = NULL;
+        list *prev = NULL;
+        //TODO: better efficency
+        if (findList(l1, l2->val, &node, &prev) == 0)
+        {
+            return 0;
+        }
+        l1 = l1->next;
+    }
+    return 1;
+}
+
 //Remove elements from l1 that are in l2. Return 1 if removed something, 0 otherwise.
 int reduceList(list **l1, list *l2)
 {
@@ -175,4 +194,28 @@ int reduceList(list **l1, list *l2)
         }
         return changed;
     }
+}
+
+//Return a clone of l1
+list *cloneList(list *l1)
+{
+    list *l2 = NULL;
+    list *prev = NULL;
+    while (l1 != NULL)
+    {
+        list *new = (list *)malloc(sizeof(list));
+        new->val = l1->val;
+        new->next = NULL;
+        if (prev == NULL)
+        {
+            l2 = new;
+        }
+        else
+        {
+            prev->next = new;
+        }
+        prev = new;
+        l1 = l1->next;
+    }
+    return l2;
 }

@@ -106,7 +106,7 @@ int removeListCount(listCount **l, listCount **node, listCount **prev)
     return 1;
 }
 
-//Find and subtract count (and eventually removes) of node with value n from list l
+//Find and subtract count (and eventually remove) of node with value n from list l
 int findAndRemoveListCount(listCount **l, int n)
 {
     listCount *node = NULL;
@@ -122,6 +122,7 @@ int findAndRemoveListCount(listCount **l, int n)
     return 0;
 }
 
+//Reduce the count (and eventually remove) of nodes in list possCount that are also in poss
 void reduceListCount(listCount **possCount, list *poss, int i)
 {
     listCount *nodeCount = possCount[i];
@@ -143,4 +144,29 @@ void reduceListCount(listCount **possCount, list *poss, int i)
             }
         }
     }
+}
+
+//Return a clone of l1
+listCount *cloneListCount(listCount *l1)
+{
+    listCount *l2 = NULL;
+    listCount *prev = NULL;
+    while (l1 != NULL)
+    {
+        listCount *new = (listCount *)malloc(sizeof(listCount));
+        new->val = l1->val;
+        new->count = l1->count;
+        new->next = NULL;
+        if (prev == NULL)
+        {
+            l2 = new;
+        }
+        else
+        {
+            prev->next = new;
+        }
+        prev = new;
+        l1 = l1->next;
+    }
+    return l2;
 }
