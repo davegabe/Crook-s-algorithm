@@ -1,1 +1,0 @@
-./crook.out >debug.out

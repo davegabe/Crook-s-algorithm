@@ -97,6 +97,17 @@ void destroySudoku(cell **sudoku, const int n)
     sudoku = NULL;
 }
 
+//Destroy and free memory of l (array of listCount)
+listCount **destroyListCountArray(listCount **l, int n)
+{
+    for (int i = 0; i < n; i++)
+    {
+        destroyListCount(&l[i]);
+    }
+    free(l);
+    l = NULL;
+}
+
 //Return a copy of l (array of listCount)
 listCount **cloneListCountArray(listCount **l, int n)
 {
@@ -114,7 +125,7 @@ void printSudoku(cell **sudoku, listCount **possRows, listCount **possColumns, l
     printf("#############################\nSUDOKU ");
     if (debug == 0)
     {
-        printf("(only grid)\n#############################\n");
+        printf("\n#############################\n");
     }
     else
     {
@@ -183,17 +194,21 @@ void setCell(cell **sudoku, listCount **possRows, listCount **possColumns, listC
     //set value in sudoku
     (sudoku[r] + c)->val = val;
     //remove the poss values from the possible values of the row
-    reduceListCount(possRows, (sudoku[r] + c)->poss, r);
+    reduceListCount(&possRows[r], (sudoku[r] + c)->poss);
     //remove the poss values from the possible values of the column
-    reduceListCount(possColumns, (sudoku[r] + c)->poss, c);
+    reduceListCount(&possColumns[c], (sudoku[r] + c)->poss);
     //remove the poss values from the possible values of the grid
-    reduceListCount(possGrids, (sudoku[r] + c)->poss, getIndexPossGrid(n, r, c));
+    reduceListCount(&possGrids[getIndexPossGrid(n, r, c)], (sudoku[r] + c)->poss);
     //remove all poss values from the cell
     destroyList(&((sudoku[r] + c)->poss));
 
     //remove the value from the possible values of the cells in the same row
     for (size_t k = 0; k < n; ++k)
     {
+        if (k == c)
+        {
+            continue;
+        }
         //if the cell has val as a possible value, after removing it...
         if (findAndRemoveList(&(sudoku[r] + k)->poss, val) == 1)
         {
@@ -209,6 +224,10 @@ void setCell(cell **sudoku, listCount **possRows, listCount **possColumns, listC
     //remove the value from the possible values of the cells in the same column
     for (size_t k = 0; k < n; ++k)
     {
+        if (k == r)
+        {
+            continue;
+        }
         //if the cell has val as a possible value, after removing it...
         if (findAndRemoveList(&(sudoku[k] + c)->poss, val) == 1)
         {
@@ -230,6 +249,10 @@ void setCell(cell **sudoku, listCount **possRows, listCount **possColumns, listC
     {
         for (size_t m = 0; m < rowN; ++m)
         {
+            if (startI + k == r && startJ + m == c)
+            {
+                continue;
+            }
             //if the cell has val as a possible value, after removing it...
             if (findAndRemoveList(&(sudoku[startI + k] + startJ + m)->poss, val) == 1)
             {
@@ -280,8 +303,10 @@ int solveLoneRangers(cell **sudoku, listCount **possRows, listCount **possColumn
     {
         //for each row i
         //if row i has lone rangers (if possRows[i] has count 1 for some number)
-        for (listCount *l = possRows[i]; l != NULL; l = l->next)
+        int lastVal = 0;
+        for (listCount *l = findNextListCount(possRows[i], lastVal); l != NULL; l = findNextListCount(possRows[i], lastVal))
         {
+            lastVal = l->val;
             if (l->count == 1) //if it's a lone ranger
             {
                 //find the lone ranger in the row
@@ -295,6 +320,7 @@ int solveLoneRangers(cell **sudoku, listCount **possRows, listCount **possColumn
                         {
                             changed = 1;
                             setCell(sudoku, possRows, possColumns, possGrids, n, i, j, l->val);
+                            break;
                         }
                     }
                 }
@@ -303,8 +329,10 @@ int solveLoneRangers(cell **sudoku, listCount **possRows, listCount **possColumn
 
         //for each column i
         //if column i has lone rangers (if possColumns[i] has count 1 for some number)
-        for (listCount *l = possColumns[i]; l != NULL; l = l->next)
+        lastVal = 0;
+        for (listCount *l = findNextListCount(possColumns[i], lastVal); l != NULL; l = findNextListCount(possColumns[i], lastVal))
         {
+            lastVal = l->val;
             if (l->count == 1) //if it's a lone ranger
             {
                 //find the lone ranger in the row
@@ -318,6 +346,7 @@ int solveLoneRangers(cell **sudoku, listCount **possRows, listCount **possColumn
                         {
                             changed = 1;
                             setCell(sudoku, possRows, possColumns, possGrids, n, j, i, l->val);
+                            break;
                         }
                     }
                 }
@@ -326,8 +355,10 @@ int solveLoneRangers(cell **sudoku, listCount **possRows, listCount **possColumn
 
         //for each grid i
         //if grid i has lone rangers (if possGrids[i] has count 1 for some number)
-        for (listCount *l = possGrids[i]; l != NULL; l = l->next)
+        lastVal = 0;
+        for (listCount *l = findNextListCount(possGrids[i], lastVal); l != NULL; l = findNextListCount(possGrids[i], lastVal))
         {
+            lastVal = l->val;
             if (l->count == 1) //if it's a lone ranger
             {
                 //find the lone ranger in the grid
@@ -336,6 +367,7 @@ int solveLoneRangers(cell **sudoku, listCount **possRows, listCount **possColumn
                 int startJ = i % rowN * rowN;
                 for (size_t k = 0; k < rowN; ++k)
                 {
+                    int br = 0;
                     for (size_t m = 0; m < rowN; ++m)
                     {
                         if ((sudoku[startI + k] + startJ + m)->val == 0)
@@ -346,8 +378,14 @@ int solveLoneRangers(cell **sudoku, listCount **possRows, listCount **possColumn
                             {
                                 changed = 1;
                                 setCell(sudoku, possRows, possColumns, possGrids, n, startI + k, startJ + m, l->val);
+                                br = 1;
+                                break;
                             }
                         }
+                    }
+                    if (br == 1)
+                    {
+                        break;
                     }
                 }
             }
@@ -555,7 +593,7 @@ int isSolved(cell **sudoku, listCount **possRows, listCount **possColumns, listC
     return 1;
 }
 
-//Try to solve the sudoku. Apply solveSingleton, solveLoneRangers, solveTwins repeating every time changes something. If it doesn't change anything, check if it's solved and return 1. If it's not solved, try guessing a value and solve again.
+//Try to solve the sudoku. Apply solveSingleton, solveLoneRangers, solveTwins repeating every time changes something. If it doesn't change anything, check if it's solved and return the solved sudoku. If it's not solved, try guessing a value and solve again. If sudoku is unsolvable, return NULL.
 cell **solveSudoku(cell **sudoku, listCount **possRows, listCount **possColumns, listCount **possGrids, int n)
 {
     int changed;
@@ -570,7 +608,7 @@ cell **solveSudoku(cell **sudoku, listCount **possRows, listCount **possColumns,
         }
         else if (changed == -1)
         {
-            return 0;
+            return NULL;
         }
 
         int changedLoneRangers = solveLoneRangers(sudoku, possRows, possColumns, possGrids, n);
@@ -598,10 +636,9 @@ cell **solveSudoku(cell **sudoku, listCount **possRows, listCount **possColumns,
     }
     else
     {
-        //TODO: change to randomly choose a cell with value 0
+        //pick the first cell with value 0
         // printf("RANDOM\n");
         int r, c;
-        //pick the first cell with value 0
         for (int index = 0; index < n * n; index++)
         {
             r = index / n;
@@ -622,11 +659,15 @@ cell **solveSudoku(cell **sudoku, listCount **possRows, listCount **possColumns,
             setCell(sudokuClone, possRowsClone, possColumnsClone, possGridsClone, n, r, c, l->val);
 
             cell **solvedSudoku = solveSudoku(sudokuClone, possRowsClone, possColumnsClone, possGridsClone, n);
+            destroyListCountArray(possRowsClone, n);
+            destroyListCountArray(possColumnsClone, n);
+            destroyListCountArray(possGridsClone, n);
             if (solvedSudoku != NULL)
             {
-                // freeSudoku(sudoku, n);
+                // destroySudoku(sudoku, n);
                 return solvedSudoku;
             }
+            destroySudoku(sudokuClone, n);
         }
     }
     return NULL;
@@ -667,12 +708,12 @@ int main(void)
     else
     {
         printf("Sudoku not solved!\n");
-        printSudoku(solvedSudoku, possRows, possColumns, possGrids, n, 1);
+        //printSudoku(sudoku, possRows, possColumns, possGrids, n, 1);
     }
 
     destroySudoku(sudoku, n);
-    destroyListCount(possRows);
-    destroyListCount(possColumns);
-    destroyListCount(possGrids);
+    destroyListCountArray(possRows, n);
+    destroyListCountArray(possColumns, n);
+    destroyListCountArray(possGrids, n);
     return 0;
 }
