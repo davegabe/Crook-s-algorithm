@@ -16,7 +16,7 @@ typedef struct cell
 cell **readSudoku(int *n, listCount ***possRows, listCount ***possColumns, listCount ***possGrids, const char *filename)
 {
     FILE *fp = fopen(filename, "r");
-    cell **sudoku = NULL, **tmp;
+    cell **sudoku = NULL;
     char line[1024];
 
     // read the size of the sudoku
@@ -45,10 +45,10 @@ cell **readSudoku(int *n, listCount ***possRows, listCount ***possColumns, listC
         }
 
         // read the sudoku
-        for (size_t i = 0; i < *n; ++i)
+        for (int i = 0; i < *n; ++i)
         {
             sudoku[i] = calloc(*n, sizeof(cell));
-            for (size_t j = 0; j < *n; ++j)
+            for (int j = 0; j < *n; ++j)
             {
                 int t;
                 fscanf(fp, "%d", &t);
@@ -64,6 +64,7 @@ cell **readSudoku(int *n, listCount ***possRows, listCount ***possColumns, listC
 
         return sudoku;
     }
+    return NULL;
 }
 
 //Return a copy of sudoku
@@ -99,7 +100,7 @@ void destroySudoku(cell **sudoku, const int n)
 }
 
 //Destroy and free memory of l (array of listCount)
-listCount **destroyListCountArray(listCount **l, int n)
+void destroyListCountArray(listCount **l, int n)
 {
     for (int i = 0; i < n; i++)
     {
@@ -133,7 +134,7 @@ void printSudoku(cell **sudoku, listCount **possRows, listCount **possColumns, l
         printf("(possible values)\n#############################\n");
     }
 
-    for (size_t i = 0; i < n; ++i)
+    for (int i = 0; i < n; ++i)
     {
         if (debug == 0)
         {
@@ -141,7 +142,7 @@ void printSudoku(cell **sudoku, listCount **possRows, listCount **possColumns, l
             {
                 printf("----------------------\n");
             }
-            for (size_t j = 0; j < n; ++j)
+            for (int j = 0; j < n; ++j)
             {
                 if (j % 3 == 0)
                 {
@@ -157,7 +158,7 @@ void printSudoku(cell **sudoku, listCount **possRows, listCount **possColumns, l
         }
         else
         {
-            for (size_t j = 0; j < n; ++j)
+            for (int j = 0; j < n; ++j)
             {
                 if ((sudoku[i] + j)->val != 0)
                 {
@@ -204,7 +205,7 @@ void setCell(cell **sudoku, listCount **possRows, listCount **possColumns, listC
     destroyList(&((sudoku[r] + c)->poss));
 
     //remove the value from the possible values of the cells in the same row
-    for (size_t k = 0; k < n; ++k)
+    for (int k = 0; k < n; ++k)
     {
         if (k == c)
         {
@@ -223,7 +224,7 @@ void setCell(cell **sudoku, listCount **possRows, listCount **possColumns, listC
     }
 
     //remove the value from the possible values of the cells in the same column
-    for (size_t k = 0; k < n; ++k)
+    for (int k = 0; k < n; ++k)
     {
         if (k == r)
         {
@@ -246,9 +247,9 @@ void setCell(cell **sudoku, listCount **possRows, listCount **possColumns, listC
     int rowN = sqrt(n);
     int startI = grid / rowN * rowN;
     int startJ = grid % rowN * rowN;
-    for (size_t k = 0; k < rowN; ++k)
+    for (int k = 0; k < rowN; ++k)
     {
-        for (size_t m = 0; m < rowN; ++m)
+        for (int m = 0; m < rowN; ++m)
         {
             if (startI + k == r && startJ + m == c)
             {
@@ -272,9 +273,9 @@ void setCell(cell **sudoku, listCount **possRows, listCount **possColumns, listC
 int solveSingleton(cell **sudoku, listCount **possRows, listCount **possColumns, listCount **possGrids, int n)
 {
     int changed = 0;
-    for (size_t i = 0; i < n; ++i)
+    for (int i = 0; i < n; ++i)
     {
-        for (size_t j = 0; j < n; ++j)
+        for (int j = 0; j < n; ++j)
         {
             if ((sudoku[i] + j)->val == 0) //if it's a void cell
             {
@@ -300,7 +301,7 @@ int solveSingleton(cell **sudoku, listCount **possRows, listCount **possColumns,
 int solveLoneRangers(cell **sudoku, listCount **possRows, listCount **possColumns, listCount **possGrids, int n)
 {
     int changed = 0;
-    for (size_t i = 0; i < n; ++i)
+    for (int i = 0; i < n; ++i)
     {
         //for each row i
         //if row i has lone rangers (if possRows[i] has count 1 for some number)
@@ -311,7 +312,7 @@ int solveLoneRangers(cell **sudoku, listCount **possRows, listCount **possColumn
             if (l->count == 1) //if it's a lone ranger
             {
                 //find the lone ranger in the row
-                for (size_t j = 0; j < n; ++j)
+                for (int j = 0; j < n; ++j)
                 {
                     if ((sudoku[i] + j)->val == 0)
                     {
@@ -337,7 +338,7 @@ int solveLoneRangers(cell **sudoku, listCount **possRows, listCount **possColumn
             if (l->count == 1) //if it's a lone ranger
             {
                 //find the lone ranger in the row
-                for (size_t j = 0; j < n; ++j)
+                for (int j = 0; j < n; ++j)
                 {
                     if ((sudoku[j] + i)->val == 0)
                     {
@@ -366,10 +367,10 @@ int solveLoneRangers(cell **sudoku, listCount **possRows, listCount **possColumn
                 int rowN = sqrt(n);
                 int startI = i / rowN * rowN;
                 int startJ = i % rowN * rowN;
-                for (size_t k = 0; k < rowN; ++k)
+                for (int k = 0; k < rowN; ++k)
                 {
                     int br = 0;
-                    for (size_t m = 0; m < rowN; ++m)
+                    for (int m = 0; m < rowN; ++m)
                     {
                         if ((sudoku[startI + k] + startJ + m)->val == 0)
                         {
@@ -399,17 +400,17 @@ int solveLoneRangers(cell **sudoku, listCount **possRows, listCount **possColumn
 int solveTwins(cell **sudoku, listCount **possRows, listCount **possColumns, listCount **possGrids, int n, int twinSize)
 {
     int changed = 0;
-    for (size_t i = 0; i < n; ++i)
+    for (int i = 0; i < n; ++i)
     {
         //for each row i, column j
-        for (size_t j = 0; j < n; ++j)
+        for (int j = 0; j < n; ++j)
         {
             if ((sudoku[i] + j)->val == 0 && lengthList((sudoku[i] + j)->poss) == twinSize) //if cell has twinSize poss, it MAY be a twinSize twin
             {
                 int *colTwins = malloc(sizeof(int) * twinSize);
                 int foundTwins = 1;
                 colTwins[0] = j;
-                for (size_t j1 = j + 1; j1 < n && foundTwins != twinSize; ++j1) //check other cells in the row
+                for (int j1 = j + 1; j1 < n && foundTwins != twinSize; ++j1) //check other cells in the row
                 {
                     if (isEqualList((sudoku[i] + j)->poss, (sudoku[i] + j1)->poss) == 1) //if it's equal, it's a twin
                     {
@@ -421,7 +422,7 @@ int solveTwins(cell **sudoku, listCount **possRows, listCount **possColumns, lis
                 {
                     //remove the values from the possible values of the cells in the same row
                     int index = 0;
-                    for (size_t k = 0; k < n; ++k)
+                    for (int k = 0; k < n; ++k)
                     {
                         if ((sudoku[i] + k)->val == 0)
                         {
@@ -455,14 +456,14 @@ int solveTwins(cell **sudoku, listCount **possRows, listCount **possColumns, lis
         }
 
         //for each column i, row j
-        for (size_t j = 0; j < n; ++j)
+        for (int j = 0; j < n; ++j)
         {
             if ((sudoku[j] + i)->val == 0 && lengthList((sudoku[j] + i)->poss) == twinSize) //if cell has twinSize poss, it MAY be a twinSize twin
             {
                 int *rowTwins = malloc(sizeof(int) * twinSize);
                 int foundTwins = 1;
                 rowTwins[0] = j;
-                for (size_t j1 = j + 1; j1 < n && foundTwins != twinSize; ++j1) //check other cells in the column
+                for (int j1 = j + 1; j1 < n && foundTwins != twinSize; ++j1) //check other cells in the column
                 {
                     if (isEqualList((sudoku[j] + i)->poss, (sudoku[j1] + i)->poss) == 1) //if it's equal, it's a twin
                     {
@@ -474,7 +475,7 @@ int solveTwins(cell **sudoku, listCount **possRows, listCount **possColumns, lis
                 {
                     //remove the value from the possible values of the cells in the same column
                     int index = 0;
-                    for (size_t k = 0; k < n; ++k)
+                    for (int k = 0; k < n; ++k)
                     {
                         if ((sudoku[k] + i)->val == 0)
                         {
@@ -511,11 +512,11 @@ int solveTwins(cell **sudoku, listCount **possRows, listCount **possColumns, lis
         int rowN = sqrt(n);
         int startI = i / rowN * rowN;
         int startJ = i % rowN * rowN;
-        for (size_t k = 0; k < rowN; ++k)
+        for (int k = 0; k < rowN; ++k)
         {
-            for (size_t m = 0; m < rowN; ++m)
+            for (int m = 0; m < rowN; ++m)
             {
-                if ((sudoku[k] + m)->val == 0 && lengthList((sudoku[k] + m)->poss) == twinSize) //if cell has twinSize poss, it MAY be a twinSize twin
+                if ((sudoku[startI + k] + startJ + m)->val == 0 && lengthList((sudoku[startI + k] + startJ + m)->poss) == twinSize) //if cell has twinSize poss, it MAY be a twinSize twin
                 {
                     int *gridTwinsR = malloc(sizeof(int) * twinSize);
                     int *gridTwinsC = malloc(sizeof(int) * twinSize);
@@ -523,11 +524,11 @@ int solveTwins(cell **sudoku, listCount **possRows, listCount **possColumns, lis
                     gridTwinsR[0] = k;
                     gridTwinsC[0] = m;
                     //check other cells in the grid
-                    for (size_t k1 = k; k1 < rowN; ++k1)
+                    for (int k1 = k; k1 < rowN; ++k1)
                     {
-                        for (size_t m1 = (k1 == k ? m + 1 : 0); m1 < rowN; ++m1)
+                        for (int m1 = (k1 == k ? m + 1 : 0); m1 < rowN; ++m1)
                         {
-                            if (isEqualList((sudoku[k] + m)->poss, (sudoku[k1] + m1)->poss) == 1) //if it's equal, it's a twin
+                            if (isEqualList((sudoku[startI + k] + startJ + m)->poss, (sudoku[startI + k1] + startJ + m1)->poss) == 1) //if it's equal, it's a twin
                             {
                                 gridTwinsR[foundTwins] = k1;
                                 gridTwinsC[foundTwins] = m1;
@@ -539,9 +540,9 @@ int solveTwins(cell **sudoku, listCount **possRows, listCount **possColumns, lis
                     {
                         //remove the value from the possible values of the cells in the same row
                         int index = 0;
-                        for (size_t k1 = 0; k1 < rowN; ++k1)
+                        for (int k1 = 0; k1 < rowN; ++k1)
                         {
-                            for (size_t m1 = 0; m1 < rowN; ++m1)
+                            for (int m1 = 0; m1 < rowN; ++m1)
                             {
                                 if (k1 == gridTwinsR[index] && m1 == gridTwinsC[index]) //if it's a twin, ignore
                                 {
@@ -551,17 +552,17 @@ int solveTwins(cell **sudoku, listCount **possRows, listCount **possColumns, lis
                                 else //if it's not a twin, remove poss
                                 {
                                     //for each possible value in the twin cell, remove it from the possible values of the other cells in the same grid
-                                    for (list *l = (sudoku[k] + m)->poss; l != NULL; l = l->next)
+                                    for (list *l = (sudoku[startI + k] + startJ + m)->poss; l != NULL; l = l->next)
                                     {
-                                        if (findAndRemoveList(&(sudoku[k1] + m1)->poss, l->val) == 1) //if removed something
+                                        if (findAndRemoveList(&(sudoku[startI + k1] + startJ + m1)->poss, l->val) == 1) //if removed something
                                         {
                                             changed = 1;
                                             //remove the poss values from the possible values of the row
-                                            findAndRemoveListCount(&possRows[k1], l->val);
+                                            findAndRemoveListCount(&possRows[startI + k1], l->val);
                                             //remove the poss values from the possible values of the column
-                                            findAndRemoveListCount(&possColumns[m1], l->val);
+                                            findAndRemoveListCount(&possColumns[startJ + m1], l->val);
                                             //remove the poss values from the possible values of the grid
-                                            findAndRemoveListCount(&possGrids[getIndexPossGrid(n, k1, m1)], l->val);
+                                            findAndRemoveListCount(&possGrids[getIndexPossGrid(n, startI + k1, startJ + m1)], l->val);
                                         }
                                     }
                                 }
@@ -580,14 +581,14 @@ int solveTwins(cell **sudoku, listCount **possRows, listCount **possColumns, lis
 //Check if the sudoku is solved
 int isSolved(cell **sudoku, listCount **possRows, listCount **possColumns, listCount **possGrids, int n)
 {
-    for (size_t i = 0; i < n; ++i)
+    for (int i = 0; i < n; ++i)
     {
         if (possRows[i] != NULL || possColumns[i] != NULL || possGrids[i] != NULL)
         {
             return 0;
         }
 
-        for (size_t j = 0; j < n; ++j)
+        for (int j = 0; j < n; ++j)
         {
             if ((sudoku[i] + j)->val == 0)
             {
@@ -694,7 +695,7 @@ int main(void)
     listCount **possRows = NULL;
     listCount **possColumns = NULL;
     listCount **possGrids = NULL;
-    cell **sudoku = readSudoku(&n, &possRows, &possColumns, &possGrids, "sudoku.txt");
+    cell **sudoku = readSudoku(&n, &possRows, &possColumns, &possGrids, "sudoku-examples/sudoku.txt");
 
     if (sudoku == NULL)
     {
@@ -704,9 +705,9 @@ int main(void)
 
     clock_t begin = clock();
 
-    for (size_t r = 0; r < n; ++r)
+    for (int r = 0; r < n; ++r)
     {
-        for (size_t c = 0; c < n; ++c)
+        for (int c = 0; c < n; ++c)
         {
             if ((sudoku[r] + c)->val != 0)
             {

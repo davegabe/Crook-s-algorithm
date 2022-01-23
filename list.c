@@ -192,8 +192,8 @@ int reduceList(list **l1, list *l2)
                 node = node->next;
             }
         }
-        return changed;
     }
+    return changed;
 }
 
 //Return a clone of l1
