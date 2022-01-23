@@ -3,6 +3,7 @@
 #include <string.h>
 #include <errno.h>
 #include <math.h>
+#include <time.h>
 #include "listCount.c"
 
 typedef struct cell
@@ -449,6 +450,7 @@ int solveTwins(cell **sudoku, listCount **possRows, listCount **possColumns, lis
                         }
                     }
                 }
+                free(colTwins);
             }
         }
 
@@ -501,6 +503,7 @@ int solveTwins(cell **sudoku, listCount **possRows, listCount **possColumns, lis
                         }
                     }
                 }
+                free(rowTwins);
             }
         }
 
@@ -565,6 +568,8 @@ int solveTwins(cell **sudoku, listCount **possRows, listCount **possColumns, lis
                             }
                         }
                     }
+                    free(gridTwinsR);
+                    free(gridTwinsC);
                 }
             }
         }
@@ -599,24 +604,30 @@ cell **solveSudoku(cell **sudoku, listCount **possRows, listCount **possColumns,
     int changed;
     do
     {
-        changed = 0;
-        int changedSingleton = solveSingleton(sudoku, possRows, possColumns, possGrids, n);
-        if (changedSingleton == 1)
+        do
         {
-            changed = 1;
-            // printf("SINGLETON\n");
-        }
-        else if (changed == -1)
-        {
-            return NULL;
-        }
+            do
+            {
+                changed = 0;
+                int changedSingleton = solveSingleton(sudoku, possRows, possColumns, possGrids, n);
+                if (changedSingleton == 1)
+                {
+                    changed = 1;
+                    // printf("SINGLETON\n");
+                }
+                else if (changed == -1)
+                {
+                    return NULL;
+                }
+            } while (changed > 0);
 
-        int changedLoneRangers = solveLoneRangers(sudoku, possRows, possColumns, possGrids, n);
-        if (changedLoneRangers == 1)
-        {
-            changed = 1;
-            // printf("LONE RANGERS\n");
-        }
+            int changedLoneRangers = solveLoneRangers(sudoku, possRows, possColumns, possGrids, n);
+            if (changedLoneRangers == 1)
+            {
+                changed = 1;
+                // printf("LONE RANGERS\n");
+            }
+        } while (changed > 0);
 
         for (int twinSize = 2; twinSize < n - 1; twinSize++)
         {
@@ -664,13 +675,17 @@ cell **solveSudoku(cell **sudoku, listCount **possRows, listCount **possColumns,
             destroyListCountArray(possGridsClone, n);
             if (solvedSudoku != NULL)
             {
-                // destroySudoku(sudoku, n);
+                destroySudoku(sudoku, n);
                 return solvedSudoku;
             }
-            destroySudoku(sudokuClone, n);
+            else
+            {
+                destroySudoku(sudokuClone, n);
+            }
         }
+
+        return NULL;
     }
-    return NULL;
 }
 
 int main(void)
@@ -683,9 +698,11 @@ int main(void)
 
     if (sudoku == NULL)
     {
-        fprintf(stderr, "could not read sudoku\n");
+        fprintf(stderr, "Could not read sudoku\n");
         return 1;
     }
+
+    clock_t begin = clock();
 
     for (size_t r = 0; r < n; ++r)
     {
@@ -700,20 +717,24 @@ int main(void)
 
     cell **solvedSudoku = solveSudoku(sudoku, possRows, possColumns, possGrids, n);
 
+    clock_t end = clock();
+
     if (solvedSudoku != NULL)
     {
-        printf("Sudoku solved!\n");
         printSudoku(solvedSudoku, possRows, possColumns, possGrids, n, 0);
+        printf("Sudoku solved in %f seconds\n", (double)(end - begin) / CLOCKS_PER_SEC);
+        destroySudoku(solvedSudoku, n);
     }
     else
     {
         printf("Sudoku not solved!\n");
         //printSudoku(sudoku, possRows, possColumns, possGrids, n, 1);
+        destroySudoku(sudoku, n);
     }
 
-    destroySudoku(sudoku, n);
     destroyListCountArray(possRows, n);
     destroyListCountArray(possColumns, n);
     destroyListCountArray(possGrids, n);
+
     return 0;
 }
