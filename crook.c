@@ -215,11 +215,11 @@ void setCell(cell **sudoku, listCount **possRows, listCount **possColumns, listC
         if (findAndRemoveList(&(sudoku[r] + k)->poss, val) == 1)
         {
             //remove the value from the possible values of the row
-            findAndRemoveListCount(&(possRows[r]), val);
+            findAndReduceListCount(&(possRows[r]), val);
             //remove the value from the possible values of the column
-            findAndRemoveListCount(&(possColumns[k]), val);
+            findAndReduceListCount(&(possColumns[k]), val);
             //remove the value from the possible values of the grid
-            findAndRemoveListCount(&(possGrids[getIndexPossGrid(n, r, k)]), val);
+            findAndReduceListCount(&(possGrids[getIndexPossGrid(n, r, k)]), val);
         }
     }
 
@@ -234,11 +234,11 @@ void setCell(cell **sudoku, listCount **possRows, listCount **possColumns, listC
         if (findAndRemoveList(&(sudoku[k] + c)->poss, val) == 1)
         {
             //remove the value from the possible values of the row
-            findAndRemoveListCount(&(possRows[k]), val);
+            findAndReduceListCount(&(possRows[k]), val);
             //remove the value from the possible values of the column
-            findAndRemoveListCount(&(possColumns[c]), val);
+            findAndReduceListCount(&(possColumns[c]), val);
             //remove the value from the possible values of the grid
-            findAndRemoveListCount(&(possGrids[getIndexPossGrid(n, k, c)]), val);
+            findAndReduceListCount(&(possGrids[getIndexPossGrid(n, k, c)]), val);
         }
     }
 
@@ -259,11 +259,11 @@ void setCell(cell **sudoku, listCount **possRows, listCount **possColumns, listC
             if (findAndRemoveList(&(sudoku[startI + k] + startJ + m)->poss, val) == 1)
             {
                 //remove the value from the possible values of the row
-                findAndRemoveListCount(&(possRows[startI + k]), val);
+                findAndReduceListCount(&(possRows[startI + k]), val);
                 //remove the value from the possible values of the column
-                findAndRemoveListCount(&(possColumns[startJ + m]), val);
+                findAndReduceListCount(&(possColumns[startJ + m]), val);
                 //remove the value from the possible values of the grid
-                findAndRemoveListCount(&(possGrids[getIndexPossGrid(n, startI + k, startJ + m)]), val);
+                findAndReduceListCount(&(possGrids[getIndexPossGrid(n, startI + k, startJ + m)]), val);
             }
         }
     }
@@ -440,11 +440,11 @@ int solveTwins(cell **sudoku, listCount **possRows, listCount **possColumns, lis
                                     {
                                         changed = 1;
                                         //remove the poss values from the possible values of the row
-                                        findAndRemoveListCount(&possRows[i], l->val);
+                                        findAndReduceListCount(&possRows[i], l->val);
                                         //remove the poss values from the possible values of the column
-                                        findAndRemoveListCount(&possColumns[k], l->val);
+                                        findAndReduceListCount(&possColumns[k], l->val);
                                         //remove the poss values from the possible values of the grid
-                                        findAndRemoveListCount(&possGrids[getIndexPossGrid(n, i, k)], l->val);
+                                        findAndReduceListCount(&possGrids[getIndexPossGrid(n, i, k)], l->val);
                                     }
                                 }
                             }
@@ -493,11 +493,11 @@ int solveTwins(cell **sudoku, listCount **possRows, listCount **possColumns, lis
                                     {
                                         changed = 1;
                                         //remove the poss values from the possible values of the row
-                                        findAndRemoveListCount(&possRows[k], l->val);
+                                        findAndReduceListCount(&possRows[k], l->val);
                                         //remove the poss values from the possible values of the column
-                                        findAndRemoveListCount(&possColumns[i], l->val);
+                                        findAndReduceListCount(&possColumns[i], l->val);
                                         //remove the poss values from the possible values of the grid
-                                        findAndRemoveListCount(&possGrids[getIndexPossGrid(n, k, i)], l->val);
+                                        findAndReduceListCount(&possGrids[getIndexPossGrid(n, k, i)], l->val);
                                     }
                                 }
                             }
@@ -558,11 +558,11 @@ int solveTwins(cell **sudoku, listCount **possRows, listCount **possColumns, lis
                                         {
                                             changed = 1;
                                             //remove the poss values from the possible values of the row
-                                            findAndRemoveListCount(&possRows[startI + k1], l->val);
+                                            findAndReduceListCount(&possRows[startI + k1], l->val);
                                             //remove the poss values from the possible values of the column
-                                            findAndRemoveListCount(&possColumns[startJ + m1], l->val);
+                                            findAndReduceListCount(&possColumns[startJ + m1], l->val);
                                             //remove the poss values from the possible values of the grid
-                                            findAndRemoveListCount(&possGrids[getIndexPossGrid(n, startI + k1, startJ + m1)], l->val);
+                                            findAndReduceListCount(&possGrids[getIndexPossGrid(n, startI + k1, startJ + m1)], l->val);
                                         }
                                     }
                                 }

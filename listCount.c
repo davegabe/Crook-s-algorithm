@@ -100,7 +100,7 @@ int removeListCount(listCount **l, listCount **node, listCount **prev)
 }
 
 //Find and subtract count (and eventually remove) of node with value n from list l
-int findAndRemoveListCount(listCount **l, const int n)
+int findAndReduceListCount(listCount **l, const int n)
 {
     listCount *node = NULL;
     listCount *prev = NULL;
