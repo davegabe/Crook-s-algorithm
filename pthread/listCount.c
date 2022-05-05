@@ -8,7 +8,7 @@ typedef struct listCount
     struct listCount *next;
 } listCount;
 
-//Return a linked list with values from 1 to n and count of each node set to n
+// Return a linked list with values from 1 to n and count of each node set to n
 listCount *getListCount(const int n)
 {
     listCount *last = (listCount *)malloc(sizeof(listCount));
@@ -26,7 +26,7 @@ listCount *getListCount(const int n)
     return last;
 }
 
-//Print the list l with the count of each element
+// Print the list l with the count of each element
 void printPossListCount(listCount *l)
 {
     if (l == NULL)
@@ -44,7 +44,7 @@ void printPossListCount(listCount *l)
     printf("%d (%d) \n", tmp->val, tmp->count);
 }
 
-//Destroy the list l
+// Destroy the list l
 void destroyListCount(listCount **l)
 {
     listCount *tmp = *l;
@@ -56,7 +56,7 @@ void destroyListCount(listCount **l)
     }
 }
 
-//Find the node with value n in the list l and set the pointer to the node to the node before it
+// Find the node with value n in the list l and set the pointer to the node to the node before it
 int findListCount(listCount *l, const int n, listCount **node, listCount **prev)
 {
     if (l == NULL)
@@ -79,7 +79,7 @@ int findListCount(listCount *l, const int n, listCount **node, listCount **prev)
     return 0;
 }
 
-//Remove from list l the node
+// Remove from list l the node
 int removeListCount(listCount **l, listCount **node, listCount **prev)
 {
     if (*node == NULL || *l == NULL)
@@ -99,8 +99,21 @@ int removeListCount(listCount **l, listCount **node, listCount **prev)
     return 1;
 }
 
-//Find and subtract count (and eventually remove) of node with value n from list l
+// Find and force remove of node with value n from list l
 int findAndRemoveListCount(listCount **l, const int n)
+{
+    listCount *node = NULL;
+    listCount *prev = NULL;
+    if (findListCount(*l, n, &node, &prev) == 1)
+    {
+        removeListCount(l, &node, &prev);
+        return 1;
+    }
+    return 0;
+}
+
+// Find and subtract count (and eventually remove) of node with value n from list l
+int findAndReduceListCount(listCount **l, const int n)
 {
     listCount *node = NULL;
     listCount *prev = NULL;
@@ -115,7 +128,7 @@ int findAndRemoveListCount(listCount **l, const int n)
     return 0;
 }
 
-//Find the next node (if exists) with val > n in the list l
+// Find the next node (if exists) with val > n in the list l
 listCount *findNextListCount(listCount *l, const int n)
 {
     listCount *node = l;
@@ -130,7 +143,7 @@ listCount *findNextListCount(listCount *l, const int n)
     return node;
 }
 
-//Reduce the count (and eventually remove) of nodes in list possCount that are also in poss
+// Reduce the count (and eventually remove) of nodes in list possCount that are also in poss
 void reduceListCount(listCount **possCount, list *poss)
 {
     listCount *nodeCount = *possCount;
@@ -158,7 +171,7 @@ void reduceListCount(listCount **possCount, list *poss)
     }
 }
 
-//Return a clone of l1
+// Return a clone of l1
 listCount *cloneListCount(const listCount *l1)
 {
     listCount *l2 = NULL;
