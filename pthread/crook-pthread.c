@@ -12,7 +12,7 @@
 typedef struct cell
 {
     int val;               // value of the cell
-    int changed;           // 0 := not changed, 1 := changed, -1 := invalid
+    int changed;           // 0 := not changed, 1 := changed, -1 := invalid //TODO: REMOVE PROBABLY
     list *poss;            // possible values list from 1 to n where n is size of sudoku
     pthread_mutex_t mutex; // mutex for the cell
 } cell;
@@ -24,6 +24,14 @@ typedef struct possRCG
     listCount *poss;       // possible values list from 1 to n where n is size of sudoku
     pthread_mutex_t mutex; // mutex for every list in poss
 } possRCG;
+
+// Params for solveSingleton function
+typedef struct solveSingletonParams
+{
+    int n;                  // size of sudoku
+    cell *sudokuRow;        // sudoku row
+    int changed;        // 0 := not changed, 1 := changed, -1 := invalid
+} solveSingletonParams;
 
 // Params for markupSudoku function
 typedef struct markupParams
@@ -413,26 +421,29 @@ void *markupSudoku(void *params)
     return 0;
 }
 
-// Check if the cell (r,c) is a singleton and set it. Return 1 if a cell has been set, 0 otherwise. If the cell has no possible values (sudoku unsolvable), return -1.
-void *solveSingleton(void *paramCell)
+// Check for every cell in row, if the cells (r,c) is a singleton and set it. Return 1 if a cell has been set, 0 otherwise. If the cell has no possible values (sudoku unsolvable), return -1.
+void *solveSingleton(void *paramRow)
 {
-    cell *c = ((cell *)paramCell);
-    if (c->val == 0) // if it's a void cell
+    cell *sudokuRow = ((solveSingletonParams *)paramRow)->sudokuRow;
+    int n = ((solveSingletonParams *)paramRow)->n;
+    for (int i = 0; i < n; ++i)
     {
-        if (c->poss == NULL) // sudoku unsolvable
+        if ((sudokuRow+i)->val == 0) // if it's a void cell
         {
-            c->changed = -1;
-        }
-        else
-        {
-            if (c->poss->next == NULL) // if it's a singleton (has only 1 possible value)
+            if ((sudokuRow+i)->poss == NULL) // sudoku unsolvable
             {
-                c->val = c->poss->val;
-                c->changed = 1;
+                ((solveSingletonParams *)paramRow)->changed = -1;
+            }
+            else
+            {
+                if ((sudokuRow+i)->poss->next == NULL) // if it's a singleton (has only 1 possible value)
+                {
+                    (sudokuRow+i)->val = (sudokuRow+i)->poss->val;
+                    ((solveSingletonParams *)paramRow)->changed = 1;
+                }
             }
         }
     }
-    c->changed = 0;
     return 0;
 }
 
@@ -792,29 +803,23 @@ void *solveSudoku(void *params)
 
                 // ### SINGLETON ###
                 // spawn threads solving singleton on every cell
+                solveSingletonParams **singletonParams = malloc(sizeof(solveSingletonParams)*n);
                 for (int i = 0; i < n; ++i)
                 {
-                    for (int j = 0; j < n; ++j)
-                    {
-                        pthread_create(&threads[i * n + j], NULL, solveSingleton, (void *)(sudoku[i] + j));
-                    }
+                    solveSingletonParams *singletonParam = malloc(sizeof(solveSingletonParams));
+                    singletonParam->sudokuRow = sudoku[i];
+                    singletonParam->n = n;
+                    singletonParam->changed = 0;
+                    singletonParams[i] = singletonParam;
+                    pthread_create(&threads[i], NULL, solveSingleton, (void *)singletonParam);
                 }
                 // wait threads to finish
                 for (int i = 0; i < n; ++i)
                 {
-                    for (int j = 0; j < n; ++j)
+                    pthread_join(threads[i], NULL);
+                    if (singletonParams[i]->changed == 1)
                     {
-                        pthread_join(threads[i * n + j], NULL);
-                        if ((sudoku[i] + j)->changed == 1) // TODO: da cambiare con un parametro sui parametri del thread dato che potrebbero essere disordinati (?) o sono già ordinati (?)
-                        {
-                            changed = 1;
-                            // printf("SINGLETON\n");
-                        }
-                        else if ((sudoku[i] + j)->changed == -1)
-                        {
-                            ((solveSudokuParams *)params)->sudoku = NULL;
-                            return 0;
-                        }
+                        changed = 1;
                     }
                 }
                 free(threads);
