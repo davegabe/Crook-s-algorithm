@@ -8,6 +8,8 @@
 #include <pthread.h>
 #include "listCount.c"
 
+int done = 0;
+
 // Cell of a Sudoku
 typedef struct cell
 {
@@ -28,9 +30,9 @@ typedef struct possRCG
 // Params for solveSingleton function
 typedef struct solveSingletonParams
 {
-    int n;                  // size of sudoku
-    cell *sudokuRow;        // sudoku row
-    int changed;        // 0 := not changed, 1 := changed, -1 := invalid
+    int n;           // size of sudoku
+    cell *sudokuRow; // sudoku row
+    int changed;     // 0 := not changed, 1 := changed, -1 := invalid
 } solveSingletonParams;
 
 // Params for markupSudoku function
@@ -273,148 +275,154 @@ void *markupSudoku(void *params)
     int c = ((markupParams *)params)->c;
 
     pthread_mutex_lock(&((sudoku[r] + c)->mutex));
-    if ((sudoku[r] + c)->val != 0)
+    if ((sudoku[r] + c)->changed == 0)
     {
-        list *l = cloneList((sudoku[r] + c)->poss);
-        pthread_mutex_unlock(&((sudoku[r] + c)->mutex));
-
-        // remove the value of the cell from the possible values of the row, column and grid
-        findAndRemoveListCount(&(possRows[r]->poss), (sudoku[r] + c)->val);
-        findAndRemoveListCount(&(possColumns[c]->poss), (sudoku[r] + c)->val);
-        findAndRemoveListCount(&(possGrids[getIndexPossGrid(n, r, c)]->poss), (sudoku[r] + c)->val);
-
-        // remove the poss values from the possible values of the row
-        pthread_mutex_lock(&(possRows[r]->mutex));
-        reduceListCount(&(possRows[r]->poss), l);
-        pthread_mutex_unlock(&(possRows[r]->mutex));
-
-        // remove the poss values from the possible values of the column
-        pthread_mutex_lock(&(possColumns[c]->mutex));
-        reduceListCount(&(possColumns[c]->poss), l);
-        pthread_mutex_unlock(&(possColumns[c]->mutex));
-
-        // remove the poss values from the possible values of the grid
-        int indexGrid = getIndexPossGrid(n, r, c);
-        pthread_mutex_lock(&(possGrids[indexGrid]->mutex));
-        reduceListCount(&(possGrids[indexGrid]->poss), l);
-        pthread_mutex_unlock(&(possGrids[indexGrid]->mutex));
-
-        // remove all poss values from the cell
-        pthread_mutex_lock(&((sudoku[r] + c)->mutex));
-        (sudoku[r] + c)->changed = 0;
-        destroyList(&((sudoku[r] + c)->poss));
-        pthread_mutex_unlock(&((sudoku[r] + c)->mutex));
-
-        // remove the value from the possible values of the cells in the same row
-        for (int k = 0; k < n; ++k)
+        if ((sudoku[r] + c)->val != 0)
         {
-            if (k == c)
+            list *l = cloneList((sudoku[r] + c)->poss);
+            pthread_mutex_unlock(&((sudoku[r] + c)->mutex));
+
+            // remove the value of the cell from the possible values of the row, column and grid
+            findAndRemoveListCount(&(possRows[r]->poss), (sudoku[r] + c)->val);
+            findAndRemoveListCount(&(possColumns[c]->poss), (sudoku[r] + c)->val);
+            findAndRemoveListCount(&(possGrids[getIndexPossGrid(n, r, c)]->poss), (sudoku[r] + c)->val);
+
+            // remove the poss values from the possible values of the row
+            pthread_mutex_lock(&(possRows[r]->mutex));
+            reduceListCount(&(possRows[r]->poss), l);
+            pthread_mutex_unlock(&(possRows[r]->mutex));
+
+            // remove the poss values from the possible values of the column
+            pthread_mutex_lock(&(possColumns[c]->mutex));
+            reduceListCount(&(possColumns[c]->poss), l);
+            pthread_mutex_unlock(&(possColumns[c]->mutex));
+
+            // remove the poss values from the possible values of the grid
+            int indexGrid = getIndexPossGrid(n, r, c);
+            pthread_mutex_lock(&(possGrids[indexGrid]->mutex));
+            reduceListCount(&(possGrids[indexGrid]->poss), l);
+            pthread_mutex_unlock(&(possGrids[indexGrid]->mutex));
+
+            // remove all poss values from the cell
+            pthread_mutex_lock(&((sudoku[r] + c)->mutex));
+            (sudoku[r] + c)->changed = 1;
+            destroyList(&((sudoku[r] + c)->poss));
+            pthread_mutex_unlock(&((sudoku[r] + c)->mutex));
+
+            // remove the value from the possible values of the cells in the same row
+            for (int k = 0; k < n; ++k)
             {
-                continue;
-            }
-            // if the cell has val as a possible value, remove it
-            pthread_mutex_lock(&((sudoku[r] + k)->mutex));
-            int found = findAndRemoveList(&(sudoku[r] + k)->poss, (sudoku[r] + c)->val);
-            pthread_mutex_unlock(&((sudoku[r] + k)->mutex));
-            if (found == 1)
-            {
-                // remove the value from the possible values of the row
-                pthread_mutex_lock(&(possRows[r]->mutex));
-                findAndReduceListCount(&(possRows[r]->poss), (sudoku[r] + c)->val);
-                pthread_mutex_unlock(&(possRows[r]->mutex));
-
-                // remove the value from the possible values of the column
-                pthread_mutex_lock(&(possColumns[k]->mutex));
-                findAndReduceListCount(&(possColumns[k]->poss), (sudoku[r] + c)->val);
-                pthread_mutex_unlock(&(possColumns[k]->mutex));
-
-                // remove the value from the possible values of the grid
-                int indexGrid = getIndexPossGrid(n, r, k);
-                pthread_mutex_lock(&(possGrids[indexGrid]->mutex));
-                findAndReduceListCount(&(possGrids[indexGrid]->poss), (sudoku[r] + c)->val);
-                pthread_mutex_unlock(&(possGrids[indexGrid]->mutex));
-            }
-        }
-
-        // remove the value from the possible values of the cells in the same column
-        for (int k = 0; k < n; ++k)
-        {
-            if (k == r)
-            {
-                continue;
-            }
-            // if the cell has val as a possible value, remove it
-            pthread_mutex_lock(&((sudoku[k] + c)->mutex));
-            int found = findAndRemoveList(&(sudoku[k] + c)->poss, (sudoku[r] + c)->val);
-            pthread_mutex_unlock(&((sudoku[k] + c)->mutex));
-            if (found == 1)
-            {
-                // remove the value from the possible values of the row
-                pthread_mutex_lock(&(possRows[k]->mutex));
-                findAndReduceListCount(&(possRows[k]->poss), (sudoku[r] + c)->val);
-                pthread_mutex_unlock(&(possRows[k]->mutex));
-
-                // remove the value from the possible values of the column
-                pthread_mutex_lock(&(possColumns[c]->mutex));
-                findAndReduceListCount(&(possColumns[c]->poss), (sudoku[r] + c)->val);
-                pthread_mutex_unlock(&(possColumns[c]->mutex));
-
-                // remove the value from the possible values of the grid
-                int indexGrid = getIndexPossGrid(n, k, c);
-                pthread_mutex_lock(&(possGrids[indexGrid]->mutex));
-                findAndReduceListCount(&(possGrids[indexGrid]->poss), (sudoku[r] + c)->val);
-                pthread_mutex_unlock(&(possGrids[indexGrid]->mutex));
-            }
-        }
-
-        // remove the value from the possible values of the cells in the same grid
-        int grid = getIndexPossGrid(n, r, c);
-        int rowN = sqrt(n);
-        int startI = grid / rowN * rowN;
-        int startJ = grid % rowN * rowN;
-        for (int k = 0; k < rowN; ++k)
-        {
-            for (int m = 0; m < rowN; ++m)
-            {
-                if (startI + k == r && startJ + m == c)
+                if (k == c)
                 {
                     continue;
                 }
                 // if the cell has val as a possible value, remove it
-                pthread_mutex_lock(&((sudoku[startI + k] + startJ + m)->mutex));
-                int found = findAndRemoveList(&(sudoku[startI + k] + startJ + m)->poss, (sudoku[r] + c)->val);
-                pthread_mutex_unlock(&((sudoku[startI + k] + startJ + m)->mutex));
+                pthread_mutex_lock(&((sudoku[r] + k)->mutex));
+                int found = findAndRemoveList(&(sudoku[r] + k)->poss, (sudoku[r] + c)->val);
+                pthread_mutex_unlock(&((sudoku[r] + k)->mutex));
                 if (found == 1)
                 {
-
                     // remove the value from the possible values of the row
-                    pthread_mutex_lock(&(possRows[startI + k]->mutex));
-                    findAndReduceListCount(&(possRows[startI + k]->poss), (sudoku[r] + c)->val);
-                    pthread_mutex_unlock(&(possRows[startI + k]->mutex));
+                    pthread_mutex_lock(&(possRows[r]->mutex));
+                    findAndReduceListCount(&(possRows[r]->poss), (sudoku[r] + c)->val);
+                    pthread_mutex_unlock(&(possRows[r]->mutex));
 
                     // remove the value from the possible values of the column
-                    pthread_mutex_lock(&(possColumns[startJ + m]->mutex));
-                    findAndReduceListCount(&(possColumns[startJ + m]->poss), (sudoku[r] + c)->val);
-                    pthread_mutex_unlock(&(possColumns[startJ + m]->mutex));
+                    pthread_mutex_lock(&(possColumns[k]->mutex));
+                    findAndReduceListCount(&(possColumns[k]->poss), (sudoku[r] + c)->val);
+                    pthread_mutex_unlock(&(possColumns[k]->mutex));
 
                     // remove the value from the possible values of the grid
-                    int indexGrid = getIndexPossGrid(n, startI + k, startJ + m);
+                    int indexGrid = getIndexPossGrid(n, r, k);
                     pthread_mutex_lock(&(possGrids[indexGrid]->mutex));
                     findAndReduceListCount(&(possGrids[indexGrid]->poss), (sudoku[r] + c)->val);
                     pthread_mutex_unlock(&(possGrids[indexGrid]->mutex));
                 }
+            }
+
+            // remove the value from the possible values of the cells in the same column
+            for (int k = 0; k < n; ++k)
+            {
+                if (k == r)
+                {
+                    continue;
+                }
+                // if the cell has val as a possible value, remove it
+                pthread_mutex_lock(&((sudoku[k] + c)->mutex));
+                int found = findAndRemoveList(&(sudoku[k] + c)->poss, (sudoku[r] + c)->val);
+                pthread_mutex_unlock(&((sudoku[k] + c)->mutex));
+                if (found == 1)
+                {
+                    // remove the value from the possible values of the row
+                    pthread_mutex_lock(&(possRows[k]->mutex));
+                    findAndReduceListCount(&(possRows[k]->poss), (sudoku[r] + c)->val);
+                    pthread_mutex_unlock(&(possRows[k]->mutex));
+
+                    // remove the value from the possible values of the column
+                    pthread_mutex_lock(&(possColumns[c]->mutex));
+                    findAndReduceListCount(&(possColumns[c]->poss), (sudoku[r] + c)->val);
+                    pthread_mutex_unlock(&(possColumns[c]->mutex));
+
+                    // remove the value from the possible values of the grid
+                    int indexGrid = getIndexPossGrid(n, k, c);
+                    pthread_mutex_lock(&(possGrids[indexGrid]->mutex));
+                    findAndReduceListCount(&(possGrids[indexGrid]->poss), (sudoku[r] + c)->val);
+                    pthread_mutex_unlock(&(possGrids[indexGrid]->mutex));
+                }
+            }
+
+            // remove the value from the possible values of the cells in the same grid
+            int grid = getIndexPossGrid(n, r, c);
+            int rowN = sqrt(n);
+            int startI = grid / rowN * rowN;
+            int startJ = grid % rowN * rowN;
+            for (int k = 0; k < rowN; ++k)
+            {
+                for (int m = 0; m < rowN; ++m)
+                {
+                    if (startI + k == r && startJ + m == c)
+                    {
+                        continue;
+                    }
+                    // if the cell has val as a possible value, remove it
+                    pthread_mutex_lock(&((sudoku[startI + k] + startJ + m)->mutex));
+                    int found = findAndRemoveList(&(sudoku[startI + k] + startJ + m)->poss, (sudoku[r] + c)->val);
+                    pthread_mutex_unlock(&((sudoku[startI + k] + startJ + m)->mutex));
+                    if (found == 1)
+                    {
+
+                        // remove the value from the possible values of the row
+                        pthread_mutex_lock(&(possRows[startI + k]->mutex));
+                        findAndReduceListCount(&(possRows[startI + k]->poss), (sudoku[r] + c)->val);
+                        pthread_mutex_unlock(&(possRows[startI + k]->mutex));
+
+                        // remove the value from the possible values of the column
+                        pthread_mutex_lock(&(possColumns[startJ + m]->mutex));
+                        findAndReduceListCount(&(possColumns[startJ + m]->poss), (sudoku[r] + c)->val);
+                        pthread_mutex_unlock(&(possColumns[startJ + m]->mutex));
+
+                        // remove the value from the possible values of the grid
+                        int indexGrid = getIndexPossGrid(n, startI + k, startJ + m);
+                        pthread_mutex_lock(&(possGrids[indexGrid]->mutex));
+                        findAndReduceListCount(&(possGrids[indexGrid]->poss), (sudoku[r] + c)->val);
+                        pthread_mutex_unlock(&(possGrids[indexGrid]->mutex));
+                    }
+                }
+            }
+        }
+        else
+        {
+            pthread_mutex_unlock(&((sudoku[r] + c)->mutex));
+            if ((sudoku[r] + c)->poss == NULL) // not valid
+            {
+                ((markupParams *)params)->isValid = 0;
             }
         }
     }
     else
     {
         pthread_mutex_unlock(&((sudoku[r] + c)->mutex));
-        if ((sudoku[r] + c)->poss == NULL) // not valid
-        {
-            ((markupParams *)params)->isValid = 0;
-        }
     }
-
     // free the memory allocated for the markupParams
     // free(params);
     // params = NULL;
@@ -428,17 +436,17 @@ void *solveSingleton(void *paramRow)
     int n = ((solveSingletonParams *)paramRow)->n;
     for (int i = 0; i < n; ++i)
     {
-        if ((sudokuRow+i)->val == 0) // if it's a void cell
+        if ((sudokuRow + i)->val == 0) // if it's a void cell
         {
-            if ((sudokuRow+i)->poss == NULL) // sudoku unsolvable
+            if ((sudokuRow + i)->poss == NULL) // sudoku unsolvable
             {
                 ((solveSingletonParams *)paramRow)->changed = -1;
             }
             else
             {
-                if ((sudokuRow+i)->poss->next == NULL) // if it's a singleton (has only 1 possible value)
+                if ((sudokuRow + i)->poss->next == NULL) // if it's a singleton (has only 1 possible value)
                 {
-                    (sudokuRow+i)->val = (sudokuRow+i)->poss->val;
+                    (sudokuRow + i)->val = (sudokuRow + i)->poss->val;
                     ((solveSingletonParams *)paramRow)->changed = 1;
                 }
             }
@@ -744,7 +752,7 @@ int isSolved(cell **sudoku, possRCG **possRows, possRCG **possColumns, possRCG *
 }
 
 // Try to solve the sudoku. Apply solveSingleton, solveLoneRangers, solveTwins repeating every time changes something. If it doesn't change anything, check if it's solved and return the solved sudoku. If it's not solved, try guessing a value and solve again. If sudoku is unsolvable, return NULL.
-void *solveSudoku(void *params)
+void *solveSudoku(void *params) //TODO: limitare spawn dei thread nel metodo random oppure trovare modo per killarli quando uno dei thread riesce
 {
     int n = ((solveSudokuParams *)params)->n;
     cell **sudoku = ((solveSudokuParams *)params)->sudoku;
@@ -759,6 +767,11 @@ void *solveSudoku(void *params)
         {
             do
             {
+                if (done == 1)
+                {
+                    ((solveSudokuParams *)params)->sudoku = NULL;
+                    return 0;
+                }
                 changed = 0;
                 // ### MARKUP ###
                 pthread_t *threads = malloc(sizeof(pthread_t) * n * n);
@@ -803,7 +816,7 @@ void *solveSudoku(void *params)
 
                 // ### SINGLETON ###
                 // spawn threads solving singleton on every cell
-                solveSingletonParams **singletonParams = malloc(sizeof(solveSingletonParams)*n);
+                solveSingletonParams **singletonParams = malloc(sizeof(solveSingletonParams) * n);
                 for (int i = 0; i < n; ++i)
                 {
                     solveSingletonParams *singletonParam = malloc(sizeof(solveSingletonParams));
@@ -909,12 +922,18 @@ void *solveSudoku(void *params)
     // printSudoku(sudoku, possRows, possColumns, possGrids, n, 1);
     if (isSolved(sudoku, possRows, possColumns, possGrids, n) == 1)
     {
+        done = 1;
         return 0; // 1;
     }
     else
     {
+        if (done == 1)
+        {
+            ((solveSudokuParams *)params)->sudoku = NULL;
+            return 0;
+        }
+
         // pick the first cell with value 0
-        // printf("RANDOM\n");
         int r, c;
         for (int index = 0; index < n * n; index++)
         {
@@ -946,30 +965,44 @@ void *solveSudoku(void *params)
             (sudokuParams + i)->possGrids = possGridsClone;
             (sudokuParams + i)->n = n;
 
-            pthread_create(&threads[i], NULL, solveSudoku, (void *)(sudokuParams + i));
-            i++;
-        }
-        for (int i = 0; i < len; i++)
-        {
-            pthread_join(threads[i], NULL);
-            // cell **solvedSudoku = solveSudoku(sudokuClone, possRowsClone, possColumnsClone, possGridsClone, n);
-            destroyPossRCGArray((sudokuParams + i)->possRows, n);
-            destroyPossRCGArray((sudokuParams + i)->possColumns, n);
-            destroyPossRCGArray((sudokuParams + i)->possGrids, n);
+            // pthread_create(&threads[i], NULL, solveSudoku, (void *)(sudokuParams + i));
+
+            //JUST TO TEST
+            solveSudoku((void *)(sudokuParams + i));
             if ((sudokuParams + i)->sudoku != NULL)
             {
                 // destroySudoku(sudoku, n);
                 ((solveSudokuParams *)params)->sudoku = (sudokuParams + i)->sudoku;
+                done = 1;
                 // TODO: need to kill all other children threads
                 return 0; // 1;
             }
-            else
-            {
-                // destroySudoku(sudoku, n);
-            }
+            //\JUST TO TEST
+
+            i++;
         }
-        ((solveSudokuParams *)params)->sudoku = NULL;
+        // for (int i = 0; i < len; i++)
+        // {
+        //     pthread_join(threads[i], NULL);
+        //     // cell **solvedSudoku = solveSudoku(sudokuClone, possRowsClone, possColumnsClone, possGridsClone, n);
+        //     destroyPossRCGArray((sudokuParams + i)->possRows, n);
+        //     destroyPossRCGArray((sudokuParams + i)->possColumns, n);
+        //     destroyPossRCGArray((sudokuParams + i)->possGrids, n);
+        //     if ((sudokuParams + i)->sudoku != NULL)
+        //     {
+        //         // destroySudoku(sudoku, n);
+        //         ((solveSudokuParams *)params)->sudoku = (sudokuParams + i)->sudoku;
+        //         done = 1;
+        //         // TODO: need to kill all other children threads
+        //         return 0; // 1;
+        //     }
+        //     else
+        //     {
+        //         // destroySudoku(sudoku, n);
+        //     }
+        // }
         free(threads);
+        ((solveSudokuParams *)params)->sudoku = NULL;
     }
     return 0;
 }
@@ -1020,4 +1053,4 @@ int main(void)
     return 0;
 }
 
-//TODO: fare un controllo di quali metodi impiegano più tempo per capire se è ottimizzabile
+// TODO: fare un controllo di quali metodi impiegano più tempo per capire se è ottimizzabile
