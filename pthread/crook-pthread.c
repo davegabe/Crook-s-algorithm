@@ -64,6 +64,15 @@ typedef struct solveSudokuParams
     int n;
 } solveSudokuParams;
 
+typedef struct isSolvedParams
+{
+    cell **sudoku;
+    int n;
+    int *isSolved;
+    int max_threads;
+    int n_thread;
+} isSolvedParams;
+
 // Read sudoku from file and return a 2D array of cells
 cell **readSudoku(int *n, possRCG ***possRows, possRCG ***possColumns, possRCG ***possGrids, const char *filename)
 {
@@ -527,208 +536,32 @@ void *solveLoneRangerRCG(void *params)
     return 0;
 }
 
-// Check if exist (for every row, column and grid) a twinSize-tuple of cells with same possibilities of size twinSize
-int solveTwins(cell **sudoku, listCount **possRows, listCount **possColumns, listCount **possGrids, int n, int twinSize)
-{
-    int changed = 0;
-    for (int i = 0; i < n; ++i)
-    {
-        // for each row i, column j
-        for (int j = 0; j < n; ++j)
-        {
-            if ((sudoku[i] + j)->val == 0 && lengthList((sudoku[i] + j)->poss) == twinSize) // if cell has twinSize poss, it MAY be a twinSize twin
-            {
-                int *colTwins = malloc(sizeof(int) * twinSize);
-                int foundTwins = 1;
-                colTwins[0] = j;
-                for (int j1 = j + 1; j1 < n && foundTwins != twinSize; ++j1) // check other cells in the row
-                {
-                    if (isEqualList((sudoku[i] + j)->poss, (sudoku[i] + j1)->poss) == 1) // if it's equal, it's a twin
-                    {
-                        colTwins[foundTwins] = j1;
-                        foundTwins++;
-                    }
-                }
-                if (foundTwins == twinSize) // if we found all the twins
-                {
-                    // remove the values from the possible values of the cells in the same row
-                    int index = 0;
-                    for (int k = 0; k < n; ++k)
-                    {
-                        if ((sudoku[i] + k)->val == 0)
-                        {
-                            if (k == colTwins[index]) // if it's a twin, ignore
-                            {
-                                if (index < foundTwins - 1)
-                                    index++;
-                            }
-                            else // if it's not a twin, remove poss
-                            {
-                                // for each possible value in the twin cell, remove it from the possible values of the other cells in the same row
-                                for (list *l = (sudoku[i] + j)->poss; l != NULL; l = l->next)
-                                {
-                                    if (findAndRemoveList(&(sudoku[i] + k)->poss, l->val) == 1) // if removed something
-                                    {
-                                        changed = 1;
-                                        // remove the poss values from the possible values of the row
-                                        findAndReduceListCount(&possRows[i], l->val);
-                                        // remove the poss values from the possible values of the column
-                                        findAndReduceListCount(&possColumns[k], l->val);
-                                        // remove the poss values from the possible values of the grid
-                                        findAndReduceListCount(&possGrids[getIndexPossGrid(n, i, k)], l->val);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                free(colTwins);
-            }
-        }
-
-        // for each column i, row j
-        for (int j = 0; j < n; ++j)
-        {
-            if ((sudoku[j] + i)->val == 0 && lengthList((sudoku[j] + i)->poss) == twinSize) // if cell has twinSize poss, it MAY be a twinSize twin
-            {
-                int *rowTwins = malloc(sizeof(int) * twinSize);
-                int foundTwins = 1;
-                rowTwins[0] = j;
-                for (int j1 = j + 1; j1 < n && foundTwins != twinSize; ++j1) // check other cells in the column
-                {
-                    if (isEqualList((sudoku[j] + i)->poss, (sudoku[j1] + i)->poss) == 1) // if it's equal, it's a twin
-                    {
-                        rowTwins[foundTwins] = j1;
-                        foundTwins++;
-                    }
-                }
-                if (foundTwins == twinSize) // if we found all the twins
-                {
-                    // remove the value from the possible values of the cells in the same column
-                    int index = 0;
-                    for (int k = 0; k < n; ++k)
-                    {
-                        if ((sudoku[k] + i)->val == 0)
-                        {
-                            if (k == rowTwins[index]) // if it's a twin, ignore
-                            {
-                                if (index < foundTwins - 1)
-                                    index++;
-                            }
-                            else // if it's not a twin, remove poss
-                            {
-                                // for each possible value in the twin cell, remove it from the possible values of the other cells in the same column
-                                for (list *l = (sudoku[j] + i)->poss; l != NULL; l = l->next)
-                                {
-                                    if (findAndRemoveList(&(sudoku[k] + i)->poss, l->val) == 1) // if removed something
-                                    {
-                                        changed = 1;
-                                        // remove the poss values from the possible values of the row
-                                        findAndReduceListCount(&possRows[k], l->val);
-                                        // remove the poss values from the possible values of the column
-                                        findAndReduceListCount(&possColumns[i], l->val);
-                                        // remove the poss values from the possible values of the grid
-                                        findAndReduceListCount(&possGrids[getIndexPossGrid(n, k, i)], l->val);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                free(rowTwins);
-            }
-        }
-
-        // for each grid i
-        int rowN = sqrt(n);
-        int startI = i / rowN * rowN;
-        int startJ = i % rowN * rowN;
-        for (int k = 0; k < rowN; ++k)
-        {
-            for (int m = 0; m < rowN; ++m)
-            {
-                if ((sudoku[startI + k] + startJ + m)->val == 0 && lengthList((sudoku[startI + k] + startJ + m)->poss) == twinSize) // if cell has twinSize poss, it MAY be a twinSize twin
-                {
-                    int *gridTwinsR = malloc(sizeof(int) * twinSize);
-                    int *gridTwinsC = malloc(sizeof(int) * twinSize);
-                    int foundTwins = 1;
-                    gridTwinsR[0] = k;
-                    gridTwinsC[0] = m;
-                    // check other cells in the grid
-                    for (int k1 = k; k1 < rowN; ++k1)
-                    {
-                        for (int m1 = (k1 == k ? m + 1 : 0); m1 < rowN; ++m1)
-                        {
-                            if (isEqualList((sudoku[startI + k] + startJ + m)->poss, (sudoku[startI + k1] + startJ + m1)->poss) == 1) // if it's equal, it's a twin
-                            {
-                                gridTwinsR[foundTwins] = k1;
-                                gridTwinsC[foundTwins] = m1;
-                                foundTwins++;
-                            }
-                        }
-                    }
-                    if (foundTwins == twinSize) // if we found all the twins
-                    {
-                        // remove the value from the possible values of the cells in the same row
-                        int index = 0;
-                        for (int k1 = 0; k1 < rowN; ++k1)
-                        {
-                            for (int m1 = 0; m1 < rowN; ++m1)
-                            {
-                                if (k1 == gridTwinsR[index] && m1 == gridTwinsC[index]) // if it's a twin, ignore
-                                {
-                                    if (index < foundTwins - 1)
-                                        index++;
-                                }
-                                else // if it's not a twin, remove poss
-                                {
-                                    // for each possible value in the twin cell, remove it from the possible values of the other cells in the same grid
-                                    for (list *l = (sudoku[startI + k] + startJ + m)->poss; l != NULL; l = l->next)
-                                    {
-                                        if (findAndRemoveList(&(sudoku[startI + k1] + startJ + m1)->poss, l->val) == 1) // if removed something
-                                        {
-                                            changed = 1;
-                                            // remove the poss values from the possible values of the row
-                                            findAndReduceListCount(&possRows[startI + k1], l->val);
-                                            // remove the poss values from the possible values of the column
-                                            findAndReduceListCount(&possColumns[startJ + m1], l->val);
-                                            // remove the poss values from the possible values of the grid
-                                            findAndReduceListCount(&possGrids[getIndexPossGrid(n, startI + k1, startJ + m1)], l->val);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    free(gridTwinsR);
-                    free(gridTwinsC);
-                }
-            }
-        }
-    }
-    return changed;
-}
-
 // Check if the sudoku is solved
-int isSolved(cell **sudoku, possRCG **possRows, possRCG **possColumns, possRCG **possGrids, int n)
+void *isSolved(void *params)
 {
-    for (int i = 0; i < n; ++i)
-    {
-        // TODO: capire perché con questo crasha (provato sia con ->poss che senza)
-        // if (possRows[i]->poss != NULL || possColumns[i]->poss != NULL || possGrids[i]->poss != NULL)
-        // {
-        //     return 0;
-        // }
+    cell **sudoku = ((isSolvedParams *)params)->sudoku;
+    int n = ((isSolvedParams *)params)->n;
+    int n_thread = ((isSolvedParams *)params)->n_thread;
+    int max_threads = ((isSolvedParams *)params)->max_threads;
 
-        for (int j = 0; j < n; ++j)
+    int portion = n * n / max_threads;
+    int start = portion * n_thread;
+    int end = portion * (n_thread + 1);
+    if (n_thread == max_threads - 1){
+        end = n * n;
+    }
+    
+    for (int i = start; i < end; ++i)
+    {
+        int r = i / n;
+        int c = i % n;
+        if ((sudoku[r] + c)->val == 0 || (*((isSolvedParams *)params)->isSolved) == 0)
         {
-            if ((sudoku[i] + j)->val == 0)
-            {
-                return 0;
-            }
+            *(((isSolvedParams *)params)->isSolved) = 0;
+            break;
         }
     }
-    return 1;
+    return 0;
 }
 
 // Try to solve the sudoku. Apply solveSingleton, solveLoneRangers, solveTwins repeating every time changes something. If it doesn't change anything, check if it's solved and return the solved sudoku. If it's not solved, try guessing a value and solve again. If sudoku is unsolvable, return NULL.
@@ -791,7 +624,6 @@ void *solveSudoku(void *params) // TODO: limitare spawn dei thread nel metodo ra
                 singletonParam->changed = 0;
                 singletonParams[i] = singletonParam;
                 pthread_create(&threads[i], NULL, solveSingleton, (void *)singletonParam);
-                solveSingleton((void *)singletonParam);
             }
             // wait threads to finish
             for (int i = 0; i < n; ++i)
@@ -806,58 +638,81 @@ void *solveSudoku(void *params) // TODO: limitare spawn dei thread nel metodo ra
         } while (changed > 0);
         changed = 0;
 
-        // // ### LONE RANGERS ###
-        // pthread_t *threads = malloc(sizeof(pthread_t) * n * 3);
-        // loneRangerParams **loneRangerparams = malloc(sizeof(loneRangerParams) * n * 3);
-        // for (int i = 0; i < n; ++i)
-        // {
-        //     // spawn threads solving lone rangers on every row
-        //     loneRangerParams *loneranger = malloc(sizeof(loneRangerParams));
-        //     loneranger->sudoku = sudoku;
-        //     loneranger->possRcg = possRows[i];
-        //     loneranger->changed = 0;
-        //     loneranger->n = n;
-        //     loneranger->r = i;
-        //     loneranger->c = -1;
-        //     loneRangerparams[i] = loneranger;
-        //     pthread_create(&threads[i], NULL, solveLoneRangerRCG, (void *)loneranger);
+        // ### LONE RANGERS ###
+        pthread_t *threads = malloc(sizeof(pthread_t) * n * 3);
+        loneRangerParams **loneRangerparams = malloc(sizeof(loneRangerParams) * n * 3);
+        for (int i = 0; i < n; ++i)
+        {
+            // spawn threads solving lone rangers on every row
+            loneRangerParams *loneranger = malloc(sizeof(loneRangerParams));
+            loneranger->sudoku = sudoku;
+            loneranger->possRcg = possRows[i];
+            loneranger->changed = 0;
+            loneranger->n = n;
+            loneranger->r = i;
+            loneranger->c = -1;
+            loneRangerparams[i] = loneranger;
+            pthread_create(&threads[i], NULL, solveLoneRangerRCG, (void *)loneranger);
 
-        //     // spawn threads solving lone rangers on every column
-        //     loneranger = malloc(sizeof(loneRangerParams));
-        //     loneranger->sudoku = sudoku;
-        //     loneranger->possRcg = possColumns[i];
-        //     loneranger->changed = 0;
-        //     loneranger->n = n;
-        //     loneranger->r = -1;
-        //     loneranger->c = i;
-        //     loneRangerparams[i + n] = loneranger;
-        //     pthread_create(&threads[i + n], NULL, solveLoneRangerRCG, (void *)loneranger);
+            // spawn threads solving lone rangers on every column
+            loneranger = malloc(sizeof(loneRangerParams));
+            loneranger->sudoku = sudoku;
+            loneranger->possRcg = possColumns[i];
+            loneranger->changed = 0;
+            loneranger->n = n;
+            loneranger->r = -1;
+            loneranger->c = i;
+            loneRangerparams[i + n] = loneranger;
+            pthread_create(&threads[i + n], NULL, solveLoneRangerRCG, (void *)loneranger);
 
-        //     // spawn threads solving lone rangers on every grid
-        //     int sqrtN = sqrt(n);
-        //     loneranger = malloc(sizeof(loneRangerParams));
-        //     loneranger->sudoku = sudoku;
-        //     loneranger->possRcg = possGrids[i];
-        //     loneranger->changed = 0;
-        //     loneranger->n = n;
-        //     loneranger->r = i / sqrtN * sqrtN;
-        //     loneranger->c = i % sqrtN * sqrtN;
-        //     loneRangerparams[i + n * 2] = loneranger;
-        //     pthread_create(&threads[i + n * 2], NULL, solveLoneRangerRCG, (void *)loneranger);
-        // }
-        // // wait threads to finish
-        // for (int i = 0; i < 3 * n; ++i)
-        // {
-        //     pthread_join(threads[i], NULL);
-        //     if (loneRangerparams[i]->changed == 1)
-        //     {
-        //         changed = 1;
-        //     }
-        // }
+            // spawn threads solving lone rangers on every grid
+            int sqrtN = sqrt(n);
+            loneranger = malloc(sizeof(loneRangerParams));
+            loneranger->sudoku = sudoku;
+            loneranger->possRcg = possGrids[i];
+            loneranger->changed = 0;
+            loneranger->n = n;
+            loneranger->r = i / sqrtN * sqrtN;
+            loneranger->c = i % sqrtN * sqrtN;
+            loneRangerparams[i + n * 2] = loneranger;
+            pthread_create(&threads[i + n * 2], NULL, solveLoneRangerRCG, (void *)loneranger);
+        }
+        // wait threads to finish
+        for (int i = 0; i < 3 * n; ++i)
+        {
+            pthread_join(threads[i], NULL);
+            if (loneRangerparams[i]->changed == 1)
+            {
+                changed = 1;
+            }
+        }
     } while (changed > 0);
 
     // printSudoku(sudoku, possRows, possColumns, possGrids, n, 1);
-    if (isSolved(sudoku, possRows, possColumns, possGrids, n) == 1)
+
+    pthread_t *threads = malloc(sizeof(pthread_t) * n);
+    int isSolvedV = 1;
+    int max_threads = 3;
+    for (int i = 0; i < max_threads; ++i)
+    {
+        isSolvedParams *isSolvedParam = malloc(sizeof(isSolvedParams));
+        isSolvedParam->sudoku = sudoku;
+        isSolvedParam->n = n;
+        isSolvedParam->isSolved = &isSolvedV;
+        isSolvedParam->n_thread = i;
+        isSolvedParam->max_threads = max_threads;
+
+        pthread_create(&threads[i], NULL, isSolved, (void *)isSolvedParam);
+        // isSolved((void *)isSolvedParam);
+    }
+    // wait threads to finish
+    for (int i = 0; i < max_threads; ++i)
+    {
+        pthread_join(threads[i], NULL);
+    }
+    free(threads);
+
+    if (isSolvedV == 1)
     {
         return 0; // 1;
     }
