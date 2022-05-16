@@ -8,8 +8,6 @@
 #include <pthread.h>
 #include "listCount.c"
 
-int done = 0;
-
 // Cell of a Sudoku
 typedef struct cell
 {
@@ -22,7 +20,6 @@ typedef struct cell
 // Array of listCounts for each row/column/grid and their mutexes
 typedef struct possRCG
 {
-    int changed;           // 0 := not changed, 1 := changed, -1 := invalid
     listCount *poss;       // possible values list from 1 to n where n is size of sudoku
     pthread_mutex_t mutex; // mutex for every list in poss
 } possRCG;
@@ -92,17 +89,14 @@ cell **readSudoku(int *n, possRCG ***possRows, possRCG ***possColumns, possRCG *
 
             // create a listCount of all possible values (from 1 to 9)
             (*possRows)[i]->poss = getListCount(*n);
-            (*possRows)[i]->changed = 0;
             pthread_mutex_init(&(*possRows)[i]->mutex, NULL);
 
             // create the possible values listCount for each column
             (*possColumns)[i]->poss = getListCount(*n);
-            (*possColumns)[i]->changed = 0;
             pthread_mutex_init(&(*possColumns)[i]->mutex, NULL);
 
             // create the possible values listCount for each cell
             (*possGrids)[i]->poss = getListCount(*n);
-            (*possGrids)[i]->changed = 0;
             pthread_mutex_init(&(*possGrids)[i]->mutex, NULL);
         }
 
@@ -187,7 +181,6 @@ possRCG **clonePossRCGArray(possRCG **l, const int n)
     {
         clone[i] = malloc(sizeof(possRCG));
         clone[i]->poss = cloneListCount(l[i]->poss);
-        clone[i]->changed = 0;
         pthread_mutex_init(&(clone[i]->mutex), NULL);
     }
     return clone;
@@ -274,18 +267,28 @@ void *markupSudoku(void *params)
 
     for (int c = 0; c < n; c++)
     {
-        pthread_mutex_lock(&((sudoku[r] + c)->mutex));
-        if ((sudoku[r] + c)->changed == 0)
+        if ((sudoku[r] + c)->val != 0)
         {
-            if ((sudoku[r] + c)->val != 0)
+            if ((sudoku[r] + c)->changed == 0)
             {
+                pthread_mutex_lock(&((sudoku[r] + c)->mutex));
                 list *l = cloneList((sudoku[r] + c)->poss);
+                (sudoku[r] + c)->changed = 1;
+                destroyList(&((sudoku[r] + c)->poss));
                 pthread_mutex_unlock(&((sudoku[r] + c)->mutex));
 
                 // remove the value of the cell from the possible values of the row, column and grid
+                pthread_mutex_lock(&(possRows[r]->mutex));
                 findAndRemoveListCount(&(possRows[r]->poss), (sudoku[r] + c)->val);
+                pthread_mutex_unlock(&(possRows[r]->mutex));
+
+                pthread_mutex_lock(&(possColumns[c]->mutex));
                 findAndRemoveListCount(&(possColumns[c]->poss), (sudoku[r] + c)->val);
+                pthread_mutex_unlock(&(possColumns[c]->mutex));
+
+                pthread_mutex_lock(&(possGrids[getIndexPossGrid(n, r, c)]->mutex));
                 findAndRemoveListCount(&(possGrids[getIndexPossGrid(n, r, c)]->poss), (sudoku[r] + c)->val);
+                pthread_mutex_unlock(&(possGrids[getIndexPossGrid(n, r, c)]->mutex));
 
                 // remove the poss values from the possible values of the row
                 pthread_mutex_lock(&(possRows[r]->mutex));
@@ -303,12 +306,6 @@ void *markupSudoku(void *params)
                 reduceListCount(&(possGrids[indexGrid]->poss), l);
                 pthread_mutex_unlock(&(possGrids[indexGrid]->mutex));
 
-                // remove all poss values from the cell
-                pthread_mutex_lock(&((sudoku[r] + c)->mutex));
-                (sudoku[r] + c)->changed = 1;
-                destroyList(&((sudoku[r] + c)->poss));
-                pthread_mutex_unlock(&((sudoku[r] + c)->mutex));
-
                 // remove the value from the possible values of the cells in the same row
                 for (int k = 0; k < n; ++k)
                 {
@@ -317,26 +314,24 @@ void *markupSudoku(void *params)
                         continue;
                     }
                     // if the cell has val as a possible value, remove it
-                    pthread_mutex_lock(&((sudoku[r] + k)->mutex));
-                    int found = findAndRemoveList(&(sudoku[r] + k)->poss, (sudoku[r] + c)->val);
-                    pthread_mutex_unlock(&((sudoku[r] + k)->mutex));
-                    if (found == 1)
+                    if ((sudoku[r] + k)->val == 0)
                     {
-                        // remove the value from the possible values of the row
-                        pthread_mutex_lock(&(possRows[r]->mutex));
-                        findAndReduceListCount(&(possRows[r]->poss), (sudoku[r] + c)->val);
-                        pthread_mutex_unlock(&(possRows[r]->mutex));
+                        pthread_mutex_lock(&((sudoku[r] + k)->mutex));
+                        int found = findAndRemoveList(&(sudoku[r] + k)->poss, (sudoku[r] + c)->val);
+                        pthread_mutex_unlock(&((sudoku[r] + k)->mutex));
+                        if (found == 1)
+                        {
+                            // remove the value from the possible values of the column
+                            pthread_mutex_lock(&(possColumns[k]->mutex));
+                            findAndReduceListCount(&(possColumns[k]->poss), (sudoku[r] + c)->val);
+                            pthread_mutex_unlock(&(possColumns[k]->mutex));
 
-                        // remove the value from the possible values of the column
-                        pthread_mutex_lock(&(possColumns[k]->mutex));
-                        findAndReduceListCount(&(possColumns[k]->poss), (sudoku[r] + c)->val);
-                        pthread_mutex_unlock(&(possColumns[k]->mutex));
-
-                        // remove the value from the possible values of the grid
-                        int indexGrid = getIndexPossGrid(n, r, k);
-                        pthread_mutex_lock(&(possGrids[indexGrid]->mutex));
-                        findAndReduceListCount(&(possGrids[indexGrid]->poss), (sudoku[r] + c)->val);
-                        pthread_mutex_unlock(&(possGrids[indexGrid]->mutex));
+                            // remove the value from the possible values of the grid
+                            int indexGrid = getIndexPossGrid(n, r, k);
+                            pthread_mutex_lock(&(possGrids[indexGrid]->mutex));
+                            findAndReduceListCount(&(possGrids[indexGrid]->poss), (sudoku[r] + c)->val);
+                            pthread_mutex_unlock(&(possGrids[indexGrid]->mutex));
+                        }
                     }
                 }
 
@@ -348,26 +343,24 @@ void *markupSudoku(void *params)
                         continue;
                     }
                     // if the cell has val as a possible value, remove it
-                    pthread_mutex_lock(&((sudoku[k] + c)->mutex));
-                    int found = findAndRemoveList(&(sudoku[k] + c)->poss, (sudoku[r] + c)->val);
-                    pthread_mutex_unlock(&((sudoku[k] + c)->mutex));
-                    if (found == 1)
+                    if ((sudoku[k] + c)->val == 0)
                     {
-                        // remove the value from the possible values of the row
-                        pthread_mutex_lock(&(possRows[k]->mutex));
-                        findAndReduceListCount(&(possRows[k]->poss), (sudoku[r] + c)->val);
-                        pthread_mutex_unlock(&(possRows[k]->mutex));
+                        pthread_mutex_lock(&((sudoku[k] + c)->mutex));
+                        int found = findAndRemoveList(&(sudoku[k] + c)->poss, (sudoku[r] + c)->val);
+                        pthread_mutex_unlock(&((sudoku[k] + c)->mutex));
+                        if (found == 1)
+                        {
+                            // remove the value from the possible values of the row
+                            pthread_mutex_lock(&(possRows[k]->mutex));
+                            findAndReduceListCount(&(possRows[k]->poss), (sudoku[r] + c)->val);
+                            pthread_mutex_unlock(&(possRows[k]->mutex));
 
-                        // remove the value from the possible values of the column
-                        pthread_mutex_lock(&(possColumns[c]->mutex));
-                        findAndReduceListCount(&(possColumns[c]->poss), (sudoku[r] + c)->val);
-                        pthread_mutex_unlock(&(possColumns[c]->mutex));
-
-                        // remove the value from the possible values of the grid
-                        int indexGrid = getIndexPossGrid(n, k, c);
-                        pthread_mutex_lock(&(possGrids[indexGrid]->mutex));
-                        findAndReduceListCount(&(possGrids[indexGrid]->poss), (sudoku[r] + c)->val);
-                        pthread_mutex_unlock(&(possGrids[indexGrid]->mutex));
+                            // remove the value from the possible values of the grid
+                            int indexGrid = getIndexPossGrid(n, k, c);
+                            pthread_mutex_lock(&(possGrids[indexGrid]->mutex));
+                            findAndReduceListCount(&(possGrids[indexGrid]->poss), (sudoku[r] + c)->val);
+                            pthread_mutex_unlock(&(possGrids[indexGrid]->mutex));
+                        }
                     }
                 }
 
@@ -385,48 +378,37 @@ void *markupSudoku(void *params)
                             continue;
                         }
                         // if the cell has val as a possible value, remove it
-                        pthread_mutex_lock(&((sudoku[startI + k] + startJ + m)->mutex));
-                        int found = findAndRemoveList(&(sudoku[startI + k] + startJ + m)->poss, (sudoku[r] + c)->val);
-                        pthread_mutex_unlock(&((sudoku[startI + k] + startJ + m)->mutex));
-                        if (found == 1)
+                        if ((sudoku[startI + k] + startJ + m)->val == 0)
                         {
+                            pthread_mutex_lock(&((sudoku[startI + k] + startJ + m)->mutex));
+                            int found = findAndRemoveList(&(sudoku[startI + k] + startJ + m)->poss, (sudoku[r] + c)->val);
+                            pthread_mutex_unlock(&((sudoku[startI + k] + startJ + m)->mutex));
+                            if (found == 1)
+                            {
 
-                            // remove the value from the possible values of the row
-                            pthread_mutex_lock(&(possRows[startI + k]->mutex));
-                            findAndReduceListCount(&(possRows[startI + k]->poss), (sudoku[r] + c)->val);
-                            pthread_mutex_unlock(&(possRows[startI + k]->mutex));
+                                // remove the value from the possible values of the row
+                                pthread_mutex_lock(&(possRows[startI + k]->mutex));
+                                findAndReduceListCount(&(possRows[startI + k]->poss), (sudoku[r] + c)->val);
+                                pthread_mutex_unlock(&(possRows[startI + k]->mutex));
 
-                            // remove the value from the possible values of the column
-                            pthread_mutex_lock(&(possColumns[startJ + m]->mutex));
-                            findAndReduceListCount(&(possColumns[startJ + m]->poss), (sudoku[r] + c)->val);
-                            pthread_mutex_unlock(&(possColumns[startJ + m]->mutex));
-
-                            // remove the value from the possible values of the grid
-                            int indexGrid = getIndexPossGrid(n, startI + k, startJ + m);
-                            pthread_mutex_lock(&(possGrids[indexGrid]->mutex));
-                            findAndReduceListCount(&(possGrids[indexGrid]->poss), (sudoku[r] + c)->val);
-                            pthread_mutex_unlock(&(possGrids[indexGrid]->mutex));
+                                // remove the value from the possible values of the column
+                                pthread_mutex_lock(&(possColumns[startJ + m]->mutex));
+                                findAndReduceListCount(&(possColumns[startJ + m]->poss), (sudoku[r] + c)->val);
+                                pthread_mutex_unlock(&(possColumns[startJ + m]->mutex));
+                            }
                         }
                     }
-                }
-            }
-            else
-            {
-                pthread_mutex_unlock(&((sudoku[r] + c)->mutex));
-                if ((sudoku[r] + c)->poss == NULL) // not valid
-                {
-                    ((markupParams *)params)->isValid = 0;
                 }
             }
         }
         else
         {
-            pthread_mutex_unlock(&((sudoku[r] + c)->mutex));
+            if ((sudoku[r] + c)->poss == NULL) // not valid
+            {
+                ((markupParams *)params)->isValid = 0;
+            }
         }
     }
-    // free the memory allocated for the markupParams
-    // free(params);
-    // params = NULL;
     return 0;
 }
 
@@ -481,7 +463,6 @@ void *solveLoneRangerRCG(void *params)
                         pthread_mutex_lock(&((sudoku[r] + c1)->mutex));
                         if (findAndRemoveList(&(sudoku[r] + c1)->poss, l->val) == 1) // if it's the lone ranger in the row
                         {
-                            possRcg->changed = 1;
                             ((loneRangerParams *)params)->changed = 1;
                             (sudoku[r] + c1)->val = l->val;
                             pthread_mutex_unlock(&((sudoku[r] + c1)->mutex));
@@ -503,7 +484,6 @@ void *solveLoneRangerRCG(void *params)
                         pthread_mutex_lock(&((sudoku[r1] + c)->mutex));
                         if (findAndRemoveList(&(sudoku[r1] + c)->poss, l->val) == 1) // if it's the lone ranger in the column
                         {
-                            possRcg->changed = 1;
                             ((loneRangerParams *)params)->changed = 1;
                             (sudoku[r1] + c)->val = l->val;
                             pthread_mutex_unlock(&((sudoku[r1] + c)->mutex));
@@ -528,7 +508,6 @@ void *solveLoneRangerRCG(void *params)
                             pthread_mutex_lock(&((sudoku[r + rDelta] + c + cDelta)->mutex));
                             if (findAndRemoveList(&(sudoku[r + rDelta] + c + cDelta)->poss, l->val) == 1) // if it's the lone ranger in the column
                             {
-                                possRcg->changed = 1;
                                 ((loneRangerParams *)params)->changed = 1;
                                 (sudoku[r + rDelta] + c + cDelta)->val = l->val;
                                 pthread_mutex_unlock(&((sudoku[r + rDelta] + c + cDelta)->mutex));
@@ -766,147 +745,113 @@ void *solveSudoku(void *params) // TODO: limitare spawn dei thread nel metodo ra
     {
         do
         {
-            do
-            {
-                if (done == 1)
-                {
-                    ((solveSudokuParams *)params)->sudoku = NULL;
-                    return 0;
-                }
-                changed = 0;
-                // ### MARKUP ###
-                pthread_t *threads = malloc(sizeof(pthread_t) * n);
-                markupParams **markparams = malloc(sizeof(markupParams) * n);
-                for (int r = 0; r < n; ++r)
-                {
-                    markupParams *markup = malloc(sizeof(markupParams));
-                    markparams[r] = markup;
-                    markup->sudoku = sudoku;
-                    markup->possRows = possRows;
-                    markup->possColumns = possColumns;
-                    markup->possGrids = possGrids;
-                    markup->n = n;
-                    markup->r = r;
-                    markup->isValid = 1;
-                    pthread_create(&threads[r], NULL, markupSudoku, (void *)markup);
-                }
-                // wait threads to finish
-                for (int r = 0; r < n; ++r)
-                {
-                    pthread_join(threads[r], NULL);
-                    if (markparams[r]->isValid == 0) // if sudoku is not valid
-                    {
-                        ((solveSudokuParams *)params)->sudoku = NULL;
-                        return 0;
-                    }
-                    // free the memory allocated for the markupParams
-                    free(markparams[r]);
-                    markparams[r] = NULL;
-                }
-                free(markparams);
-                markparams = NULL;
-
-                // ### SINGLETON ###
-                // spawn threads solving singleton on every cell
-                solveSingletonParams **singletonParams = malloc(sizeof(solveSingletonParams) * n);
-                for (int i = 0; i < n; ++i)
-                {
-                    solveSingletonParams *singletonParam = malloc(sizeof(solveSingletonParams));
-                    singletonParam->sudokuRow = sudoku[i];
-                    singletonParam->n = n;
-                    singletonParam->changed = 0;
-                    singletonParams[i] = singletonParam;
-                    pthread_create(&threads[i], NULL, solveSingleton, (void *)singletonParam);
-                }
-                // wait threads to finish
-                for (int i = 0; i < n; ++i)
-                {
-                    pthread_join(threads[i], NULL);
-                    if (singletonParams[i]->changed == 1)
-                    {
-                        changed = 1;
-                    }
-                }
-                free(threads);
-            } while (changed > 0);
             changed = 0;
 
-            // ### LONE RANGERS ###
-            pthread_t *threads = malloc(sizeof(pthread_t) * n * 3);
+            // ### MARKUP ###
+            pthread_t *threads = malloc(sizeof(pthread_t) * n);
+            markupParams **markparams = malloc(sizeof(markupParams) * n);
+            for (int r = 0; r < n; ++r)
+            {
+                markupParams *markup = malloc(sizeof(markupParams));
+                markparams[r] = markup;
+                markup->sudoku = sudoku;
+                markup->possRows = possRows;
+                markup->possColumns = possColumns;
+                markup->possGrids = possGrids;
+                markup->n = n;
+                markup->r = r;
+                markup->isValid = 1;
+                // pthread_create(&threads[r], NULL, markupSudoku, (void *)markup);
+                markupSudoku((void *)markup);
+            }
+            // // wait threads to finish
+            // for (int r = 0; r < n; ++r)
+            // {
+            //     pthread_join(threads[r], NULL);
+            //     if (markparams[r]->isValid == 0) // if sudoku is not valid
+            //     {
+            //         ((solveSudokuParams *)params)->sudoku = NULL;
+            //         return 0;
+            //     }
+            //     // free the memory allocated for the markupParams
+            //     free(markparams[r]);
+            //     markparams[r] = NULL;
+            // }
+            free(markparams);
+            markparams = NULL;
+
+            // ### SINGLETON ###
+            // spawn threads solving singleton on every cell
+            solveSingletonParams **singletonParams = malloc(sizeof(solveSingletonParams) * n);
             for (int i = 0; i < n; ++i)
             {
-                // spawn threads solving lone rangers on every row
-                loneRangerParams *loneranger = malloc(sizeof(loneRangerParams));
-                loneranger->sudoku = sudoku;
-                loneranger->possRcg = possRows[i];
-                loneranger->changed = 0;
-                loneranger->n = n;
-                loneranger->r = i;
-                loneranger->c = -1;
-                pthread_create(&threads[i], NULL, solveLoneRangerRCG, (void *)loneranger);
-
-                // spawn threads solving lone rangers on every column
-                loneranger = malloc(sizeof(loneRangerParams));
-                loneranger->sudoku = sudoku;
-                loneranger->possRcg = possColumns[i];
-                loneranger->changed = 0;
-                loneranger->n = n;
-                loneranger->r = -1;
-                loneranger->c = i;
-                pthread_create(&threads[i + n], NULL, solveLoneRangerRCG, (void *)loneranger);
-
-                // spawn threads solving lone rangers on every grid
-                int sqrtN = sqrt(n);
-                loneranger = malloc(sizeof(loneRangerParams));
-                loneranger->sudoku = sudoku;
-                loneranger->possRcg = possGrids[i];
-                loneranger->changed = 0;
-                loneranger->n = n;
-                loneranger->r = i / sqrtN * sqrtN;
-                loneranger->c = i % sqrtN * sqrtN;
-                pthread_create(&threads[i + n * 2], NULL, solveLoneRangerRCG, (void *)loneranger);
+                solveSingletonParams *singletonParam = malloc(sizeof(solveSingletonParams));
+                singletonParam->sudokuRow = sudoku[i];
+                singletonParam->n = n;
+                singletonParam->changed = 0;
+                singletonParams[i] = singletonParam;
+                pthread_create(&threads[i], NULL, solveSingleton, (void *)singletonParam);
+                solveSingleton((void *)singletonParam);
             }
             // wait threads to finish
-            for (int i = 0; i < n; ++i) // 3*n
+            for (int i = 0; i < n; ++i)
             {
                 pthread_join(threads[i], NULL);
-                if (i / n == 0) // possRows
+                if (singletonParams[i]->changed == 1)
                 {
-                    if ((possRows[i % n])->changed == 1)
-                    {
-                        changed = 1;
-                        (possRows[i % n])->changed = 0;
-                        // printf("LONE RANGERS\n");
-                    }
-                }
-                else if (i / n == 1) // possColumns
-                {
-                    if ((possColumns[i % n])->changed == 1)
-                    {
-                        changed = 1;
-                        (possColumns[i % n])->changed = 0;
-                        // printf("LONE RANGERS\n");
-                    }
-                }
-                else // possGrids
-                {
-                    if ((possGrids[i % n])->changed == 1)
-                    {
-                        changed = 1;
-                        (possGrids[i % n])->changed = 0;
-                        // printf("LONE RANGERS\n");
-                    }
+                    changed = 1;
                 }
             }
+            free(threads);
         } while (changed > 0);
-        // for (int twinSize = 2; twinSize < n - 1; twinSize++)
+        changed = 0;
+
+        // // ### LONE RANGERS ###
+        // pthread_t *threads = malloc(sizeof(pthread_t) * n * 3);
+        // loneRangerParams **loneRangerparams = malloc(sizeof(loneRangerParams) * n * 3);
+        // for (int i = 0; i < n; ++i)
         // {
-        //     int changedTwins = solveTwins(sudoku, possRows, possColumns, possGrids, n, twinSize);
-        //     if (changedTwins == 1)
+        //     // spawn threads solving lone rangers on every row
+        //     loneRangerParams *loneranger = malloc(sizeof(loneRangerParams));
+        //     loneranger->sudoku = sudoku;
+        //     loneranger->possRcg = possRows[i];
+        //     loneranger->changed = 0;
+        //     loneranger->n = n;
+        //     loneranger->r = i;
+        //     loneranger->c = -1;
+        //     loneRangerparams[i] = loneranger;
+        //     pthread_create(&threads[i], NULL, solveLoneRangerRCG, (void *)loneranger);
+
+        //     // spawn threads solving lone rangers on every column
+        //     loneranger = malloc(sizeof(loneRangerParams));
+        //     loneranger->sudoku = sudoku;
+        //     loneranger->possRcg = possColumns[i];
+        //     loneranger->changed = 0;
+        //     loneranger->n = n;
+        //     loneranger->r = -1;
+        //     loneranger->c = i;
+        //     loneRangerparams[i + n] = loneranger;
+        //     pthread_create(&threads[i + n], NULL, solveLoneRangerRCG, (void *)loneranger);
+
+        //     // spawn threads solving lone rangers on every grid
+        //     int sqrtN = sqrt(n);
+        //     loneranger = malloc(sizeof(loneRangerParams));
+        //     loneranger->sudoku = sudoku;
+        //     loneranger->possRcg = possGrids[i];
+        //     loneranger->changed = 0;
+        //     loneranger->n = n;
+        //     loneranger->r = i / sqrtN * sqrtN;
+        //     loneranger->c = i % sqrtN * sqrtN;
+        //     loneRangerparams[i + n * 2] = loneranger;
+        //     pthread_create(&threads[i + n * 2], NULL, solveLoneRangerRCG, (void *)loneranger);
+        // }
+        // // wait threads to finish
+        // for (int i = 0; i < 3 * n; ++i)
+        // {
+        //     pthread_join(threads[i], NULL);
+        //     if (loneRangerparams[i]->changed == 1)
         //     {
         //         changed = 1;
-        //         // printf("TWINS %d\n", twinSize);
-        //         break;
         //     }
         // }
     } while (changed > 0);
@@ -914,20 +859,13 @@ void *solveSudoku(void *params) // TODO: limitare spawn dei thread nel metodo ra
     // printSudoku(sudoku, possRows, possColumns, possGrids, n, 1);
     if (isSolved(sudoku, possRows, possColumns, possGrids, n) == 1)
     {
-        done = 1;
         return 0; // 1;
     }
     else
     {
-        if (done == 1)
-        {
-            ((solveSudokuParams *)params)->sudoku = NULL;
-            return 0;
-        }
-
         // pick the first cell with value 0
         int r, c;
-        for (int index = 0; index < n * n; index++)
+        for (int index = 0; index < n * n; ++index)
         {
             r = index / n;
             c = index % n;
@@ -965,7 +903,6 @@ void *solveSudoku(void *params) // TODO: limitare spawn dei thread nel metodo ra
             {
                 // destroySudoku(sudoku, n);
                 ((solveSudokuParams *)params)->sudoku = (sudokuParams + i)->sudoku;
-                done = 1;
                 // TODO: need to kill all other children threads
                 return 0; // 1;
             }
@@ -984,7 +921,6 @@ void *solveSudoku(void *params) // TODO: limitare spawn dei thread nel metodo ra
         //     {
         //         // destroySudoku(sudoku, n);
         //         ((solveSudokuParams *)params)->sudoku = (sudokuParams + i)->sudoku;
-        //         done = 1;
         //         // TODO: need to kill all other children threads
         //         return 0; // 1;
         //     }
