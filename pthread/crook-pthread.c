@@ -27,8 +27,10 @@ typedef struct possRCG
 // Params for solveSingleton function
 typedef struct solveSingletonParams
 {
+    cell **sudoku;   // sudoku
     int n;           // size of sudoku
-    cell *sudokuRow; // sudoku row
+    int max_threads; // max number of threads
+    int n_thread;    // number of current thread
     int changed;     // 0 := not changed, 1 := changed, -1 := invalid
 } solveSingletonParams;
 
@@ -66,11 +68,11 @@ typedef struct solveSudokuParams
 
 typedef struct isSolvedParams
 {
-    cell **sudoku;
-    int n;
-    int *isSolved;
-    int max_threads;
-    int n_thread;
+    int *isSolved;   // 1 := solved, 0 := not solved
+    cell **sudoku;   // sudoku
+    int n;           // size of sudoku
+    int max_threads; // max number of threads
+    int n_thread;    // number of current thread
 } isSolvedParams;
 
 // Read sudoku from file and return a 2D array of cells
@@ -422,24 +424,37 @@ void *markupSudoku(void *params)
 }
 
 // Check for every cell in row, if the cells (r,c) is a singleton and set it. Return 1 if a cell has been set, 0 otherwise. If the cell has no possible values (sudoku unsolvable), return -1.
-void *solveSingleton(void *paramRow)
+void *solveSingleton(void *params)
 {
-    cell *sudokuRow = ((solveSingletonParams *)paramRow)->sudokuRow;
-    int n = ((solveSingletonParams *)paramRow)->n;
-    for (int i = 0; i < n; ++i)
+    cell **sudoku = ((solveSingletonParams *)params)->sudoku;
+    int n = ((solveSingletonParams *)params)->n;
+    int n_thread = ((solveSingletonParams *)params)->n_thread;
+    int max_threads = ((solveSingletonParams *)params)->max_threads;
+
+    int portion = n * n / max_threads;
+    int start = portion * n_thread;
+    int end = portion * (n_thread + 1);
+    if (n_thread == max_threads - 1)
     {
-        if ((sudokuRow + i)->val == 0) // if it's a void cell
+        end = n * n;
+    }
+
+    for (int i = start; i < end; ++i)
+    {
+        int r = i / n;
+        int c = i % n;
+        if ((sudoku[r] + c)->val == 0) // if it's a void cell
         {
-            if ((sudokuRow + i)->poss == NULL) // sudoku unsolvable
+            if ((sudoku[r] + c)->poss == NULL) // sudoku unsolvable
             {
-                ((solveSingletonParams *)paramRow)->changed = -1;
+                ((solveSingletonParams *)params)->changed = -1;
             }
             else
             {
-                if ((sudokuRow + i)->poss->next == NULL) // if it's a singleton (has only 1 possible value)
+                if ((sudoku[r] + c)->poss->next == NULL) // if it's a singleton (has only 1 possible value)
                 {
-                    (sudokuRow + i)->val = (sudokuRow + i)->poss->val;
-                    ((solveSingletonParams *)paramRow)->changed = 1;
+                    (sudoku[r] + c)->val = (sudoku[r] + c)->poss->val;
+                    ((solveSingletonParams *)params)->changed = 1;
                 }
             }
         }
@@ -547,10 +562,11 @@ void *isSolved(void *params)
     int portion = n * n / max_threads;
     int start = portion * n_thread;
     int end = portion * (n_thread + 1);
-    if (n_thread == max_threads - 1){
+    if (n_thread == max_threads - 1)
+    {
         end = n * n;
     }
-    
+
     for (int i = start; i < end; ++i)
     {
         int r = i / n;
@@ -614,19 +630,22 @@ void *solveSudoku(void *params) // TODO: limitare spawn dei thread nel metodo ra
             markparams = NULL;
 
             // ### SINGLETON ###
-            // spawn threads solving singleton on every cell
+            // spawn threads solving singleton
             solveSingletonParams **singletonParams = malloc(sizeof(solveSingletonParams) * n);
-            for (int i = 0; i < n; ++i)
+            int max_threads = 2;
+            for (int i = 0; i < max_threads; ++i)
             {
                 solveSingletonParams *singletonParam = malloc(sizeof(solveSingletonParams));
-                singletonParam->sudokuRow = sudoku[i];
+                singletonParam->sudoku = sudoku;
                 singletonParam->n = n;
+                singletonParam->n_thread = i;
+                singletonParam->max_threads = max_threads;
                 singletonParam->changed = 0;
                 singletonParams[i] = singletonParam;
                 pthread_create(&threads[i], NULL, solveSingleton, (void *)singletonParam);
             }
             // wait threads to finish
-            for (int i = 0; i < n; ++i)
+            for (int i = 0; i < max_threads; ++i)
             {
                 pthread_join(threads[i], NULL);
                 if (singletonParams[i]->changed == 1)
@@ -701,9 +720,7 @@ void *solveSudoku(void *params) // TODO: limitare spawn dei thread nel metodo ra
         isSolvedParam->isSolved = &isSolvedV;
         isSolvedParam->n_thread = i;
         isSolvedParam->max_threads = max_threads;
-
         pthread_create(&threads[i], NULL, isSolved, (void *)isSolvedParam);
-        // isSolved((void *)isSolvedParam);
     }
     // wait threads to finish
     for (int i = 0; i < max_threads; ++i)
@@ -718,17 +735,13 @@ void *solveSudoku(void *params) // TODO: limitare spawn dei thread nel metodo ra
     }
     else
     {
-        // pick the first cell with value 0
+        // pick the random cell with value 0
         int r, c;
-        for (int index = 0; index < n * n; ++index)
-        {
+        do {
+            int index = rand() % (n * n);
             r = index / n;
             c = index % n;
-            if ((sudoku[r] + c)->val == 0)
-            {
-                break;
-            }
-        }
+        } while((sudoku[r] + c)->val != 0);
 
         // for each possible value, try to solve the sudoku
         int len = lengthList((sudoku[r] + c)->poss);
@@ -837,3 +850,4 @@ int main(void)
 }
 
 // TODO: fare un controllo di quali metodi impiegano più tempo per capire se è ottimizzabile
+// TODO: continuare a implementare i metodi in multithreading con il parametro max_threads in modo da trovare il numero migliore per ottimizzare, dopodiché trovare un modo per le chiamate ricorsive
