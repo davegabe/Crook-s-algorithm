@@ -80,6 +80,7 @@ cell **cloneSudoku(cell **sudoku, const int n)
         {
             (clone[i] + j)->val = (sudoku[i] + j)->val;
             (clone[i] + j)->poss = cloneList((sudoku[i] + j)->poss);
+            (clone[i] + j)->changed = (sudoku[i] + j)->changed;
         }
     }
     return clone;
@@ -231,6 +232,12 @@ int markupSudoku(cell **sudoku, listCount **possRows, listCount **possColumns, l
                         {
                             continue;
                         }
+
+                        if ((sudoku[r] + c)->val == (sudoku[r] + k)->val) // not valid
+                        {
+                            return -1;
+                        }
+
                         // if the cell has val as a possible value, remove it
                         int found = findAndRemoveList(&(sudoku[r] + k)->poss, (sudoku[r] + c)->val);
                         if (found == 1)
@@ -254,6 +261,12 @@ int markupSudoku(cell **sudoku, listCount **possRows, listCount **possColumns, l
                         {
                             continue;
                         }
+
+                        if ((sudoku[r] + c)->val == (sudoku[k] + c)->val) // not valid
+                        {
+                            return -1;
+                        }
+
                         // if the cell has val as a possible value, remove it
                         int found = findAndRemoveList(&(sudoku[k] + c)->poss, (sudoku[r] + c)->val);
                         if (found == 1)
@@ -283,6 +296,12 @@ int markupSudoku(cell **sudoku, listCount **possRows, listCount **possColumns, l
                             {
                                 continue;
                             }
+
+                            if ((sudoku[r] + c)->val == (sudoku[startI + k] + startJ + m)->val) // not valid
+                            {
+                                return -1;
+                            }
+
                             // if the cell has val as a possible value, remove it
                             int found = findAndRemoveList(&(sudoku[startI + k] + startJ + m)->poss, (sudoku[r] + c)->val);
                             if (found == 1)
@@ -451,188 +470,6 @@ int solveLoneRangers(cell **sudoku, listCount **possRows, listCount **possColumn
     return changed;
 }
 
-// Check if exist (for every row, column and grid) a twinSize-tuple of cells with same possibilities of size twinSize
-int solveTwins(cell **sudoku, listCount **possRows, listCount **possColumns, listCount **possGrids, int n, int twinSize)
-{
-    int changed = 0;
-    for (int i = 0; i < n; ++i)
-    {
-        // for each row i, column j
-        for (int j = 0; j < n; ++j)
-        {
-            if ((sudoku[i] + j)->val == 0 && lengthList((sudoku[i] + j)->poss) == twinSize) // if cell has twinSize poss, it MAY be a twinSize twin
-            {
-                int *colTwins = malloc(sizeof(int) * twinSize);
-                int foundTwins = 1;
-                colTwins[0] = j;
-                for (int j1 = j + 1; j1 < n && foundTwins != twinSize; ++j1) // check other cells in the row
-                {
-                    if (isEqualList((sudoku[i] + j)->poss, (sudoku[i] + j1)->poss) == 1) // if it's equal, it's a twin
-                    {
-                        colTwins[foundTwins] = j1;
-                        foundTwins++;
-                    }
-                }
-                if (foundTwins == twinSize) // if we found all the twins
-                {
-                    // remove the values from the possible values of the cells in the same row
-                    int index = 0;
-                    for (int k = 0; k < n; ++k)
-                    {
-                        if ((sudoku[i] + k)->val == 0)
-                        {
-                            if (k == colTwins[index]) // if it's a twin, ignore
-                            {
-                                if (index < foundTwins - 1)
-                                    index++;
-                            }
-                            else // if it's not a twin, remove poss
-                            {
-                                // for each possible value in the twin cell, remove it from the possible values of the other cells in the same row
-                                for (list *l = (sudoku[i] + j)->poss; l != NULL; l = l->next)
-                                {
-                                    if (findAndRemoveList(&(sudoku[i] + k)->poss, l->val) == 1) // if removed something
-                                    {
-                                        changed = 1;
-                                        // remove the poss values from the possible values of the row
-                                        findAndReduceListCount(&possRows[i], l->val);
-                                        // remove the poss values from the possible values of the column
-                                        findAndReduceListCount(&possColumns[k], l->val);
-                                        // remove the poss values from the possible values of the grid
-                                        findAndReduceListCount(&possGrids[getIndexPossGrid(n, i, k)], l->val);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                free(colTwins);
-            }
-        }
-
-        // for each column i, row j
-        for (int j = 0; j < n; ++j)
-        {
-            if ((sudoku[j] + i)->val == 0 && lengthList((sudoku[j] + i)->poss) == twinSize) // if cell has twinSize poss, it MAY be a twinSize twin
-            {
-                int *rowTwins = malloc(sizeof(int) * twinSize);
-                int foundTwins = 1;
-                rowTwins[0] = j;
-                for (int j1 = j + 1; j1 < n && foundTwins != twinSize; ++j1) // check other cells in the column
-                {
-                    if (isEqualList((sudoku[j] + i)->poss, (sudoku[j1] + i)->poss) == 1) // if it's equal, it's a twin
-                    {
-                        rowTwins[foundTwins] = j1;
-                        foundTwins++;
-                    }
-                }
-                if (foundTwins == twinSize) // if we found all the twins
-                {
-                    // remove the value from the possible values of the cells in the same column
-                    int index = 0;
-                    for (int k = 0; k < n; ++k)
-                    {
-                        if ((sudoku[k] + i)->val == 0)
-                        {
-                            if (k == rowTwins[index]) // if it's a twin, ignore
-                            {
-                                if (index < foundTwins - 1)
-                                    index++;
-                            }
-                            else // if it's not a twin, remove poss
-                            {
-                                // for each possible value in the twin cell, remove it from the possible values of the other cells in the same column
-                                for (list *l = (sudoku[j] + i)->poss; l != NULL; l = l->next)
-                                {
-                                    if (findAndRemoveList(&(sudoku[k] + i)->poss, l->val) == 1) // if removed something
-                                    {
-                                        changed = 1;
-                                        // remove the poss values from the possible values of the row
-                                        findAndReduceListCount(&possRows[k], l->val);
-                                        // remove the poss values from the possible values of the column
-                                        findAndReduceListCount(&possColumns[i], l->val);
-                                        // remove the poss values from the possible values of the grid
-                                        findAndReduceListCount(&possGrids[getIndexPossGrid(n, k, i)], l->val);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                free(rowTwins);
-            }
-        }
-
-        // for each grid i
-        int rowN = sqrt(n);
-        int startI = i / rowN * rowN;
-        int startJ = i % rowN * rowN;
-        for (int k = 0; k < rowN; ++k)
-        {
-            for (int m = 0; m < rowN; ++m)
-            {
-                if ((sudoku[startI + k] + startJ + m)->val == 0 && lengthList((sudoku[startI + k] + startJ + m)->poss) == twinSize) // if cell has twinSize poss, it MAY be a twinSize twin
-                {
-                    int *gridTwinsR = malloc(sizeof(int) * twinSize);
-                    int *gridTwinsC = malloc(sizeof(int) * twinSize);
-                    int foundTwins = 1;
-                    gridTwinsR[0] = k;
-                    gridTwinsC[0] = m;
-                    // check other cells in the grid
-                    for (int k1 = k; k1 < rowN; ++k1)
-                    {
-                        for (int m1 = (k1 == k ? m + 1 : 0); m1 < rowN; ++m1)
-                        {
-                            if (isEqualList((sudoku[startI + k] + startJ + m)->poss, (sudoku[startI + k1] + startJ + m1)->poss) == 1) // if it's equal, it's a twin
-                            {
-                                gridTwinsR[foundTwins] = k1;
-                                gridTwinsC[foundTwins] = m1;
-                                foundTwins++;
-                            }
-                        }
-                    }
-                    if (foundTwins == twinSize) // if we found all the twins
-                    {
-                        // remove the value from the possible values of the cells in the same row
-                        int index = 0;
-                        for (int k1 = 0; k1 < rowN; ++k1)
-                        {
-                            for (int m1 = 0; m1 < rowN; ++m1)
-                            {
-                                if (k1 == gridTwinsR[index] && m1 == gridTwinsC[index]) // if it's a twin, ignore
-                                {
-                                    if (index < foundTwins - 1)
-                                        index++;
-                                }
-                                else // if it's not a twin, remove poss
-                                {
-                                    // for each possible value in the twin cell, remove it from the possible values of the other cells in the same grid
-                                    for (list *l = (sudoku[startI + k] + startJ + m)->poss; l != NULL; l = l->next)
-                                    {
-                                        if (findAndRemoveList(&(sudoku[startI + k1] + startJ + m1)->poss, l->val) == 1) // if removed something
-                                        {
-                                            changed = 1;
-                                            // remove the poss values from the possible values of the row
-                                            findAndReduceListCount(&possRows[startI + k1], l->val);
-                                            // remove the poss values from the possible values of the column
-                                            findAndReduceListCount(&possColumns[startJ + m1], l->val);
-                                            // remove the poss values from the possible values of the grid
-                                            findAndReduceListCount(&possGrids[getIndexPossGrid(n, startI + k1, startJ + m1)], l->val);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    free(gridTwinsR);
-                    free(gridTwinsC);
-                }
-            }
-        }
-    }
-    return changed;
-}
-
 // Check if the sudoku is solved
 int isSolved(cell **sudoku, listCount **possRows, listCount **possColumns, listCount **possGrids, int n)
 {
@@ -658,47 +495,33 @@ int isSolved(cell **sudoku, listCount **possRows, listCount **possColumns, listC
 cell **solveSudoku(cell **sudoku, listCount **possRows, listCount **possColumns, listCount **possGrids, int n)
 {
     int changed;
-    // do
-    // {
+    do
+    {
         do
         {
-            do
-            {
-                changed = 0;
-                if (markupSudoku(sudoku, possRows, possColumns, possGrids, n)==-1)
-                    return NULL;
-                    
-                int changedSingleton = solveSingleton(sudoku, possRows, possColumns, possGrids, n);
-                if (changedSingleton == 1)
-                {
-                    changed = 1;
-                    // printf("SINGLETON\n");
-                }
-                else if (changed == -1)
-                {
-                    return NULL;
-                }
-            } while (changed > 0);
+            changed = 0;
+            if (markupSudoku(sudoku, possRows, possColumns, possGrids, n) == -1)
+                return NULL;
 
-            // int changedLoneRangers = solveLoneRangers(sudoku, possRows, possColumns, possGrids, n);
-            // if (changedLoneRangers == 1)
-            // {
-            //     changed = 1;
-            //     printf("LONE RANGERS\n");
-            // }
+            int changedSingleton = solveSingleton(sudoku, possRows, possColumns, possGrids, n);
+            if (changedSingleton == 1)
+            {
+                changed = 1;
+                // printf("SINGLETON\n");
+            }
+            else if (changed == -1)
+            {
+                return NULL;
+            }
         } while (changed > 0);
 
-        // for (int twinSize = 2; twinSize < n - 1; twinSize++)
-        // {
-        //     int changedTwins = solveTwins(sudoku, possRows, possColumns, possGrids, n, twinSize);
-        //     if (changedTwins == 1)
-        //     {
-        //         changed = 1;
-        //         printf("TWINS %d\n", twinSize);
-        //         break;
-        //     }
-        // }
-    // } while (changed > 0);
+        int changedLoneRangers = solveLoneRangers(sudoku, possRows, possColumns, possGrids, n);
+        if (changedLoneRangers == 1)
+        {
+            changed = 1;
+            // printf("LONE RANGERS\n");
+        }
+    } while (changed > 0);
 
     if (isSolved(sudoku, possRows, possColumns, possGrids, n) == 1)
     {
@@ -707,7 +530,7 @@ cell **solveSudoku(cell **sudoku, listCount **possRows, listCount **possColumns,
     else
     {
         // pick the first cell with value 0
-        //  printf("RANDOM\n");
+        // printf("RANDOM\n");
         int r, c;
         for (int index = 0; index < n * n; ++index)
         {

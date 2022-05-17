@@ -50,10 +50,10 @@ typedef struct markupParams
 // Params for loneRangers function
 typedef struct loneRangerParams
 {
-    cell **sudoku;    // sudoku to be solved
+    cell **sudoku;     // sudoku to be solved
     possRCG **possRcg; // possible values for each row/column/grid
-    int n;            // size of sudoku
-    int *changed;     // 0 := not changed, 1 := changed, -1 := invalid
+    int n;             // size of sudoku
+    int *changed;      // 0 := not changed, 1 := changed, -1 := invalid
 } loneRangerParams;
 
 typedef struct solveSudokuParams
@@ -336,6 +336,13 @@ void *markupSudoku(void *params)
                     {
                         continue;
                     }
+
+                    if ((sudoku[r] + c)->val == (sudoku[r] + k)->val) // not valid
+                    {
+                        *(((markupParams *)params)->isValid) = 0;
+                        break;
+                    }
+
                     // if the cell has val as a possible value, remove it
                     if ((sudoku[r] + k)->val == 0)
                     {
@@ -365,6 +372,13 @@ void *markupSudoku(void *params)
                     {
                         continue;
                     }
+
+                    if ((sudoku[r] + c)->val == (sudoku[k] + c)->val) // not valid
+                    {
+                        *(((markupParams *)params)->isValid) = 0;
+                        break;
+                    }
+
                     // if the cell has val as a possible value, remove it
                     if ((sudoku[k] + c)->val == 0)
                     {
@@ -400,6 +414,13 @@ void *markupSudoku(void *params)
                         {
                             continue;
                         }
+
+                        if ((sudoku[r] + c)->val == (sudoku[startI + k] + startJ + m)->val) // not valid
+                        {
+                            *(((markupParams *)params)->isValid) = 0;
+                            break;
+                        }
+
                         // if the cell has val as a possible value, remove it
                         if ((sudoku[startI + k] + startJ + m)->val == 0)
                         {
@@ -534,21 +555,24 @@ void *solveLoneRangerC(void *params)
         for (listCount *l = findNextListCount(possRcg[i]->poss, lastVal); l != NULL; l = findNextListCount(possRcg[i]->poss, lastVal))
         {
             lastVal = l->val;
-            for (int r = 0; r < n; ++r)
+            if (l->count == 1) // if it's a lone ranger
             {
-                if ((sudoku[r] + i)->val == 0) // if it's the lone ranger in the column
+                for (int r = 0; r < n; ++r)
                 {
-                    pthread_mutex_lock(&((sudoku[r] + i)->mutex));
-                    if (findAndRemoveList(&(sudoku[r] + i)->poss, l->val) == 1) // if it's the lone ranger in the column
+                    if ((sudoku[r] + i)->val == 0) // if it's the lone ranger in the column
                     {
-                        (*((loneRangerParams *)params)->changed) = 1;
-                        (sudoku[r] + i)->val = l->val;
-                        pthread_mutex_unlock(&((sudoku[r] + i)->mutex));
-                        break;
-                    }
-                    else
-                    {
-                        pthread_mutex_unlock(&((sudoku[r] + i)->mutex));
+                        pthread_mutex_lock(&((sudoku[r] + i)->mutex));
+                        if (findAndRemoveList(&(sudoku[r] + i)->poss, l->val) == 1) // if it's the lone ranger in the column
+                        {
+                            (*((loneRangerParams *)params)->changed) = 1;
+                            (sudoku[r] + i)->val = l->val;
+                            pthread_mutex_unlock(&((sudoku[r] + i)->mutex));
+                            break;
+                        }
+                        else
+                        {
+                            pthread_mutex_unlock(&((sudoku[r] + i)->mutex));
+                        }
                     }
                 }
             }
@@ -566,7 +590,6 @@ void *solveLoneRangerG(void *params)
     int n = ((loneRangerParams *)params)->n;
 
     int sqrtN = sqrt(n);
-
     for (int i = 0; i < n; i++) // for every grid
     {
         int r = i / sqrtN * sqrtN;
@@ -576,23 +599,26 @@ void *solveLoneRangerG(void *params)
         for (listCount *l = findNextListCount(possRcg[i]->poss, lastVal); l != NULL; l = findNextListCount(possRcg[i]->poss, lastVal))
         {
             lastVal = l->val;
-            for (int rDelta = 0; rDelta < sqrtN; ++rDelta)
+            if (l->count == 1) // if it's a lone ranger
             {
-                for (int cDelta = 0; cDelta < sqrtN; ++cDelta)
+                for (int rDelta = 0; rDelta < sqrtN; ++rDelta)
                 {
-                    if ((sudoku[r + rDelta] + c + cDelta)->val == 0)
+                    for (int cDelta = 0; cDelta < sqrtN; ++cDelta)
                     {
-                        pthread_mutex_lock(&((sudoku[r + rDelta] + c + cDelta)->mutex));
-                        if (findAndRemoveList(&(sudoku[r + rDelta] + c + cDelta)->poss, l->val) == 1) // if it's the lone ranger in the column
+                        if ((sudoku[r + rDelta] + c + cDelta)->val == 0)
                         {
-                            (*((loneRangerParams *)params)->changed) = 1;
-                            (sudoku[r + rDelta] + c + cDelta)->val = l->val;
-                            pthread_mutex_unlock(&((sudoku[r + rDelta] + c + cDelta)->mutex));
-                            break;
-                        }
-                        else
-                        {
-                            pthread_mutex_unlock(&((sudoku[r + rDelta] + c + cDelta)->mutex));
+                            pthread_mutex_lock(&((sudoku[r + rDelta] + c + cDelta)->mutex));
+                            if (findAndRemoveList(&(sudoku[r + rDelta] + c + cDelta)->poss, l->val) == 1) // if it's the lone ranger in the column
+                            {
+                                (*((loneRangerParams *)params)->changed) = 1;
+                                (sudoku[r + rDelta] + c + cDelta)->val = l->val;
+                                pthread_mutex_unlock(&((sudoku[r + rDelta] + c + cDelta)->mutex));
+                                break;
+                            }
+                            else
+                            {
+                                pthread_mutex_unlock(&((sudoku[r + rDelta] + c + cDelta)->mutex));
+                            }
                         }
                     }
                 }
@@ -732,7 +758,6 @@ void *solveSudoku(void *params) // TODO: limitare spawn dei thread nel metodo ra
         // wait threads to finish
         for (int i = 0; i < 3; ++i)
         {
-            printf("waiting thread %d\n", i);
             pthread_join(threads[i], NULL);
         }
         changed += changed_loneranger;
