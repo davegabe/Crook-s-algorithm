@@ -638,10 +638,10 @@ int isSolved(cell **sudoku, listCount **possRows, listCount **possColumns, listC
 {
     for (int i = 0; i < n; ++i)
     {
-        if (possRows[i] != NULL || possColumns[i] != NULL || possGrids[i] != NULL)
-        {
-            return 0;
-        }
+        // if (possRows[i] != NULL || possColumns[i] != NULL || possGrids[i] != NULL)
+        // {
+        //     return 0;
+        // }
 
         for (int j = 0; j < n; ++j)
         {
@@ -658,8 +658,8 @@ int isSolved(cell **sudoku, listCount **possRows, listCount **possColumns, listC
 cell **solveSudoku(cell **sudoku, listCount **possRows, listCount **possColumns, listCount **possGrids, int n)
 {
     int changed;
-    do
-    {
+    // do
+    // {
         do
         {
             do
@@ -672,7 +672,7 @@ cell **solveSudoku(cell **sudoku, listCount **possRows, listCount **possColumns,
                 if (changedSingleton == 1)
                 {
                     changed = 1;
-                    printf("SINGLETON\n");
+                    // printf("SINGLETON\n");
                 }
                 else if (changed == -1)
                 {
@@ -680,25 +680,25 @@ cell **solveSudoku(cell **sudoku, listCount **possRows, listCount **possColumns,
                 }
             } while (changed > 0);
 
-            int changedLoneRangers = solveLoneRangers(sudoku, possRows, possColumns, possGrids, n);
-            if (changedLoneRangers == 1)
-            {
-                changed = 1;
-                printf("LONE RANGERS\n");
-            }
+            // int changedLoneRangers = solveLoneRangers(sudoku, possRows, possColumns, possGrids, n);
+            // if (changedLoneRangers == 1)
+            // {
+            //     changed = 1;
+            //     printf("LONE RANGERS\n");
+            // }
         } while (changed > 0);
 
-        for (int twinSize = 2; twinSize < n - 1; twinSize++)
-        {
-            int changedTwins = solveTwins(sudoku, possRows, possColumns, possGrids, n, twinSize);
-            if (changedTwins == 1)
-            {
-                changed = 1;
-                printf("TWINS %d\n", twinSize);
-                break;
-            }
-        }
-    } while (changed > 0);
+        // for (int twinSize = 2; twinSize < n - 1; twinSize++)
+        // {
+        //     int changedTwins = solveTwins(sudoku, possRows, possColumns, possGrids, n, twinSize);
+        //     if (changedTwins == 1)
+        //     {
+        //         changed = 1;
+        //         printf("TWINS %d\n", twinSize);
+        //         break;
+        //     }
+        // }
+    // } while (changed > 0);
 
     if (isSolved(sudoku, possRows, possColumns, possGrids, n) == 1)
     {
@@ -709,7 +709,7 @@ cell **solveSudoku(cell **sudoku, listCount **possRows, listCount **possColumns,
         // pick the first cell with value 0
         //  printf("RANDOM\n");
         int r, c;
-        for (int index = 0; index < n * n; index++)
+        for (int index = 0; index < n * n; ++index)
         {
             r = index / n;
             c = index % n;

@@ -31,7 +31,7 @@ typedef struct solveSingletonParams
     int n;           // size of sudoku
     int max_threads; // max number of threads
     int n_thread;    // number of current thread
-    int changed;     // 0 := not changed, 1 := changed, -1 := invalid
+    int *changed;    // 0 := not changed, 1 := changed, -1 := invalid
 } solveSingletonParams;
 
 // Params for markupSudoku function
@@ -39,22 +39,21 @@ typedef struct markupParams
 {
     cell **sudoku;         // sudoku to be solved
     int n;                 // size of sudoku
-    int r;                 // r of current cell
     possRCG **possRows;    // possible values for each row
     possRCG **possColumns; // possible values for each column
     possRCG **possGrids;   // possible values for each grid
-    int isValid;           // 1 := is valid, 0 := is not valid
+    int *isValid;          // 1 := is valid, 0 := is not valid
+    int max_threads;       // max number of threads
+    int n_thread;          // number of current thread
 } markupParams;
 
-// Params for markupSudoku function
+// Params for loneRangers function
 typedef struct loneRangerParams
 {
-    cell **sudoku;
-    possRCG *possRcg;
-    int r;
-    int c;
-    int n;
-    int changed;
+    cell **sudoku;    // sudoku to be solved
+    possRCG **possRcg; // possible values for each row/column/grid
+    int n;            // size of sudoku
+    int *changed;     // 0 := not changed, 1 := changed, -1 := invalid
 } loneRangerParams;
 
 typedef struct solveSudokuParams
@@ -274,10 +273,23 @@ void *markupSudoku(void *params)
     possRCG **possColumns = ((markupParams *)params)->possColumns;
     possRCG **possGrids = ((markupParams *)params)->possGrids;
     int n = ((markupParams *)params)->n;
-    int r = ((markupParams *)params)->r;
+    int n_thread = ((markupParams *)params)->n_thread;
+    int max_threads = ((markupParams *)params)->max_threads;
 
-    for (int c = 0; c < n; c++)
+    int portion = n * n / max_threads;
+    int start = portion * n_thread;
+    int end = portion * (n_thread + 1);
+    if (n_thread == max_threads - 1)
     {
+        end = n * n;
+    }
+
+    for (int i = start; i < end; ++i)
+    {
+        int r = i / n;
+        int c = i % n;
+        if (((markupParams *)params)->isValid == 0)
+            break;
         if ((sudoku[r] + c)->val != 0)
         {
             if ((sudoku[r] + c)->changed == 0)
@@ -416,10 +428,12 @@ void *markupSudoku(void *params)
         {
             if ((sudoku[r] + c)->poss == NULL) // not valid
             {
-                ((markupParams *)params)->isValid = 0;
+                *(((markupParams *)params)->isValid) = 0;
+                break;
             }
         }
     }
+    free(params);
     return 0;
 }
 
@@ -443,111 +457,149 @@ void *solveSingleton(void *params)
     {
         int r = i / n;
         int c = i % n;
+        if (*(((solveSingletonParams *)params)->changed) == -1)
+            break;
         if ((sudoku[r] + c)->val == 0) // if it's a void cell
         {
             if ((sudoku[r] + c)->poss == NULL) // sudoku unsolvable
             {
-                ((solveSingletonParams *)params)->changed = -1;
+                *(((solveSingletonParams *)params)->changed) = -1;
             }
             else
             {
                 if ((sudoku[r] + c)->poss->next == NULL) // if it's a singleton (has only 1 possible value)
                 {
                     (sudoku[r] + c)->val = (sudoku[r] + c)->poss->val;
-                    ((solveSingletonParams *)params)->changed = 1;
+                    *(((solveSingletonParams *)params)->changed) = 1;
                 }
             }
         }
+    }
+    free(params);
+    return 0;
+}
+
+// Check if exist for a row a possible value where only one cell is possible.
+void *solveLoneRangerR(void *params)
+{
+    cell **sudoku = ((loneRangerParams *)params)->sudoku;
+    possRCG **possRcg = ((loneRangerParams *)params)->possRcg;
+    int n = ((loneRangerParams *)params)->n;
+
+    for (int i = 0; i < n; i++) // for every row
+    {
+        int lastVal = 0;
+        pthread_mutex_lock(&(possRcg[i]->mutex));
+        for (listCount *l = findNextListCount(possRcg[i]->poss, lastVal); l != NULL; l = findNextListCount(possRcg[i]->poss, lastVal))
+        {
+            lastVal = l->val;
+            if (l->count == 1) // if it's a lone ranger
+            {
+                for (int c = 0; c < n; ++c)
+                {
+                    if ((sudoku[i] + c)->val == 0)
+                    {
+                        pthread_mutex_lock(&((sudoku[i] + c)->mutex));
+                        if (findAndRemoveList(&(sudoku[i] + c)->poss, l->val) == 1) // if it's the lone ranger in the row
+                        {
+                            (*((loneRangerParams *)params)->changed) = 1;
+                            (sudoku[i] + c)->val = l->val;
+                            pthread_mutex_unlock(&((sudoku[i] + c)->mutex));
+                            break;
+                        }
+                        else
+                        {
+                            pthread_mutex_unlock(&((sudoku[i] + c)->mutex));
+                        }
+                    }
+                }
+            }
+        }
+        pthread_mutex_unlock(&(possRcg[i]->mutex));
     }
     return 0;
 }
 
-// Check if exist for a row/columns/grid a possible value where only one cell is possible.
-void *solveLoneRangerRCG(void *params)
+// Check if exist for a column a possible value where only one cell is possible.
+void *solveLoneRangerC(void *params)
 {
     cell **sudoku = ((loneRangerParams *)params)->sudoku;
-    possRCG *possRcg = ((loneRangerParams *)params)->possRcg;
+    possRCG **possRcg = ((loneRangerParams *)params)->possRcg;
     int n = ((loneRangerParams *)params)->n;
-    int r = ((loneRangerParams *)params)->r;
-    int c = ((loneRangerParams *)params)->c;
 
-    int lastVal = 0;
-    pthread_mutex_lock(&(possRcg->mutex));
-    for (listCount *l = findNextListCount(possRcg->poss, lastVal); l != NULL; l = findNextListCount(possRcg->poss, lastVal))
+    for (int i = 0; i < n; i++) // for every column
     {
-        lastVal = l->val;
-        if (l->count == 1) // if it's a lone ranger
+        int lastVal = 0;
+        pthread_mutex_lock(&(possRcg[i]->mutex));
+        for (listCount *l = findNextListCount(possRcg[i]->poss, lastVal); l != NULL; l = findNextListCount(possRcg[i]->poss, lastVal))
         {
-            if (r != -1 && c == -1) // find the lone ranger in the row
+            lastVal = l->val;
+            for (int r = 0; r < n; ++r)
             {
-                for (int c1 = 0; c1 < n; ++c1)
+                if ((sudoku[r] + i)->val == 0) // if it's the lone ranger in the column
                 {
-                    if ((sudoku[r] + c1)->val == 0)
+                    pthread_mutex_lock(&((sudoku[r] + i)->mutex));
+                    if (findAndRemoveList(&(sudoku[r] + i)->poss, l->val) == 1) // if it's the lone ranger in the column
                     {
-                        pthread_mutex_lock(&((sudoku[r] + c1)->mutex));
-                        if (findAndRemoveList(&(sudoku[r] + c1)->poss, l->val) == 1) // if it's the lone ranger in the row
+                        (*((loneRangerParams *)params)->changed) = 1;
+                        (sudoku[r] + i)->val = l->val;
+                        pthread_mutex_unlock(&((sudoku[r] + i)->mutex));
+                        break;
+                    }
+                    else
+                    {
+                        pthread_mutex_unlock(&((sudoku[r] + i)->mutex));
+                    }
+                }
+            }
+        }
+        pthread_mutex_unlock(&(possRcg[i]->mutex));
+    }
+    return 0;
+}
+
+// Check if exist for every grid a possible value where only one cell is possible.
+void *solveLoneRangerG(void *params)
+{
+    cell **sudoku = ((loneRangerParams *)params)->sudoku;
+    possRCG **possRcg = ((loneRangerParams *)params)->possRcg;
+    int n = ((loneRangerParams *)params)->n;
+
+    int sqrtN = sqrt(n);
+
+    for (int i = 0; i < n; i++) // for every grid
+    {
+        int r = i / sqrtN * sqrtN;
+        int c = i % sqrtN * sqrtN;
+        int lastVal = 0;
+        pthread_mutex_lock(&(possRcg[i]->mutex));
+        for (listCount *l = findNextListCount(possRcg[i]->poss, lastVal); l != NULL; l = findNextListCount(possRcg[i]->poss, lastVal))
+        {
+            lastVal = l->val;
+            for (int rDelta = 0; rDelta < sqrtN; ++rDelta)
+            {
+                for (int cDelta = 0; cDelta < sqrtN; ++cDelta)
+                {
+                    if ((sudoku[r + rDelta] + c + cDelta)->val == 0)
+                    {
+                        pthread_mutex_lock(&((sudoku[r + rDelta] + c + cDelta)->mutex));
+                        if (findAndRemoveList(&(sudoku[r + rDelta] + c + cDelta)->poss, l->val) == 1) // if it's the lone ranger in the column
                         {
-                            ((loneRangerParams *)params)->changed = 1;
-                            (sudoku[r] + c1)->val = l->val;
-                            pthread_mutex_unlock(&((sudoku[r] + c1)->mutex));
+                            (*((loneRangerParams *)params)->changed) = 1;
+                            (sudoku[r + rDelta] + c + cDelta)->val = l->val;
+                            pthread_mutex_unlock(&((sudoku[r + rDelta] + c + cDelta)->mutex));
                             break;
                         }
                         else
                         {
-                            pthread_mutex_unlock(&((sudoku[r] + c1)->mutex));
-                        }
-                    }
-                }
-            }
-            else if (r == -1 && c != -1) // find the lone ranger in the column
-            {
-                for (int r1 = 0; r1 < n; ++r1)
-                {
-                    if ((sudoku[r1] + c)->val == 0) // if it's the lone ranger in the column
-                    {
-                        pthread_mutex_lock(&((sudoku[r1] + c)->mutex));
-                        if (findAndRemoveList(&(sudoku[r1] + c)->poss, l->val) == 1) // if it's the lone ranger in the column
-                        {
-                            ((loneRangerParams *)params)->changed = 1;
-                            (sudoku[r1] + c)->val = l->val;
-                            pthread_mutex_unlock(&((sudoku[r1] + c)->mutex));
-                            break;
-                        }
-                        else
-                        {
-                            pthread_mutex_unlock(&((sudoku[r1] + c)->mutex));
-                        }
-                    }
-                }
-            }
-            else // find the lone ranger in the grid
-            {
-                int sqrtN = sqrt(n);
-                for (int rDelta = 0; rDelta < sqrtN; ++rDelta)
-                {
-                    for (int cDelta = 0; cDelta < sqrtN; ++cDelta)
-                    {
-                        if ((sudoku[r + rDelta] + c + cDelta)->val == 0)
-                        {
-                            pthread_mutex_lock(&((sudoku[r + rDelta] + c + cDelta)->mutex));
-                            if (findAndRemoveList(&(sudoku[r + rDelta] + c + cDelta)->poss, l->val) == 1) // if it's the lone ranger in the column
-                            {
-                                ((loneRangerParams *)params)->changed = 1;
-                                (sudoku[r + rDelta] + c + cDelta)->val = l->val;
-                                pthread_mutex_unlock(&((sudoku[r + rDelta] + c + cDelta)->mutex));
-                                break;
-                            }
-                            else
-                            {
-                                pthread_mutex_unlock(&((sudoku[r + rDelta] + c + cDelta)->mutex));
-                            }
+                            pthread_mutex_unlock(&((sudoku[r + rDelta] + c + cDelta)->mutex));
                         }
                     }
                 }
             }
         }
+        pthread_mutex_unlock(&(possRcg[i]->mutex));
     }
-    pthread_mutex_unlock(&(possRcg->mutex));
     return 0;
 }
 
@@ -597,42 +649,39 @@ void *solveSudoku(void *params) // TODO: limitare spawn dei thread nel metodo ra
             changed = 0;
 
             // ### MARKUP ###
-            pthread_t *threads = malloc(sizeof(pthread_t) * n);
-            markupParams **markparams = malloc(sizeof(markupParams) * n);
-            for (int r = 0; r < n; ++r)
+            int max_threads = 1;
+            int isValid = 1;
+            pthread_t *threads = malloc(sizeof(pthread_t) * max_threads);
+            for (int i = 0; i < max_threads; ++i)
             {
                 markupParams *markup = malloc(sizeof(markupParams));
-                markparams[r] = markup;
                 markup->sudoku = sudoku;
                 markup->possRows = possRows;
                 markup->possColumns = possColumns;
                 markup->possGrids = possGrids;
                 markup->n = n;
-                markup->r = r;
-                markup->isValid = 1;
-                // pthread_create(&threads[r], NULL, markupSudoku, (void *)markup);
-                markupSudoku((void *)markup);
+                markup->isValid = &isValid;
+                markup->max_threads = max_threads;
+                markup->n_thread = i;
+                pthread_create(&threads[i], NULL, markupSudoku, (void *)markup);
             }
-            // // wait threads to finish
-            // for (int r = 0; r < n; ++r)
-            // {
-            //     pthread_join(threads[r], NULL);
-            //     if (markparams[r]->isValid == 0) // if sudoku is not valid
-            //     {
-            //         ((solveSudokuParams *)params)->sudoku = NULL;
-            //         return 0;
-            //     }
-            //     // free the memory allocated for the markupParams
-            //     free(markparams[r]);
-            //     markparams[r] = NULL;
-            // }
-            free(markparams);
-            markparams = NULL;
+            // wait threads to finish
+            for (int i = 0; i < max_threads; ++i)
+            {
+                pthread_join(threads[i], NULL);
+            }
+            free(threads);
+            if (isValid == 0) // if sudoku is not valid
+            {
+                ((solveSudokuParams *)params)->sudoku = NULL;
+                return 0;
+            }
 
             // ### SINGLETON ###
             // spawn threads solving singleton
-            solveSingletonParams **singletonParams = malloc(sizeof(solveSingletonParams) * n);
-            int max_threads = 2;
+            max_threads = 2;
+            int changed_singleton = 0;
+            threads = malloc(sizeof(pthread_t) * max_threads);
             for (int i = 0; i < max_threads; ++i)
             {
                 solveSingletonParams *singletonParam = malloc(sizeof(solveSingletonParams));
@@ -640,78 +689,60 @@ void *solveSudoku(void *params) // TODO: limitare spawn dei thread nel metodo ra
                 singletonParam->n = n;
                 singletonParam->n_thread = i;
                 singletonParam->max_threads = max_threads;
-                singletonParam->changed = 0;
-                singletonParams[i] = singletonParam;
+                singletonParam->changed = &changed_singleton;
                 pthread_create(&threads[i], NULL, solveSingleton, (void *)singletonParam);
             }
             // wait threads to finish
             for (int i = 0; i < max_threads; ++i)
             {
                 pthread_join(threads[i], NULL);
-                if (singletonParams[i]->changed == 1)
-                {
-                    changed = 1;
-                }
             }
+            changed += changed_singleton;
             free(threads);
         } while (changed > 0);
         changed = 0;
 
         // ### LONE RANGERS ###
-        pthread_t *threads = malloc(sizeof(pthread_t) * n * 3);
-        loneRangerParams **loneRangerparams = malloc(sizeof(loneRangerParams) * n * 3);
-        for (int i = 0; i < n; ++i)
-        {
-            // spawn threads solving lone rangers on every row
-            loneRangerParams *loneranger = malloc(sizeof(loneRangerParams));
-            loneranger->sudoku = sudoku;
-            loneranger->possRcg = possRows[i];
-            loneranger->changed = 0;
-            loneranger->n = n;
-            loneranger->r = i;
-            loneranger->c = -1;
-            loneRangerparams[i] = loneranger;
-            pthread_create(&threads[i], NULL, solveLoneRangerRCG, (void *)loneranger);
+        int changed_loneranger = 0;
+        pthread_t *threads = malloc(sizeof(pthread_t) * 3);
 
-            // spawn threads solving lone rangers on every column
-            loneranger = malloc(sizeof(loneRangerParams));
-            loneranger->sudoku = sudoku;
-            loneranger->possRcg = possColumns[i];
-            loneranger->changed = 0;
-            loneranger->n = n;
-            loneranger->r = -1;
-            loneranger->c = i;
-            loneRangerparams[i + n] = loneranger;
-            pthread_create(&threads[i + n], NULL, solveLoneRangerRCG, (void *)loneranger);
+        // spawn thread solving lone rangers on every row
+        loneRangerParams *loneranger = malloc(sizeof(loneRangerParams));
+        loneranger->sudoku = sudoku;
+        loneranger->possRcg = possRows;
+        loneranger->n = n;
+        loneranger->changed = &changed_loneranger;
+        pthread_create(&threads[0], NULL, solveLoneRangerR, (void *)loneranger);
 
-            // spawn threads solving lone rangers on every grid
-            int sqrtN = sqrt(n);
-            loneranger = malloc(sizeof(loneRangerParams));
-            loneranger->sudoku = sudoku;
-            loneranger->possRcg = possGrids[i];
-            loneranger->changed = 0;
-            loneranger->n = n;
-            loneranger->r = i / sqrtN * sqrtN;
-            loneranger->c = i % sqrtN * sqrtN;
-            loneRangerparams[i + n * 2] = loneranger;
-            pthread_create(&threads[i + n * 2], NULL, solveLoneRangerRCG, (void *)loneranger);
-        }
+        // spawn threads solving lone rangers on every column
+        loneranger = malloc(sizeof(loneRangerParams));
+        loneranger->sudoku = sudoku;
+        loneranger->possRcg = possColumns;
+        loneranger->n = n;
+        loneranger->changed = &changed_loneranger;
+        pthread_create(&threads[1], NULL, solveLoneRangerC, (void *)loneranger);
+
+        // spawn threads solving lone rangers on every grid
+        loneranger = malloc(sizeof(loneRangerParams));
+        loneranger->sudoku = sudoku;
+        loneranger->possRcg = possGrids;
+        loneranger->n = n;
+        loneranger->changed = &changed_loneranger;
+        pthread_create(&threads[2], NULL, solveLoneRangerG, (void *)loneranger);
         // wait threads to finish
-        for (int i = 0; i < 3 * n; ++i)
+        for (int i = 0; i < 3; ++i)
         {
+            printf("waiting thread %d\n", i);
             pthread_join(threads[i], NULL);
-            if (loneRangerparams[i]->changed == 1)
-            {
-                changed = 1;
-            }
         }
+        changed += changed_loneranger;
+        free(threads);
     } while (changed > 0);
 
-    // printSudoku(sudoku, possRows, possColumns, possGrids, n, 1);
-
-    pthread_t *threads = malloc(sizeof(pthread_t) * n);
+    // ### CHECK IF IS SOLVED ###
     int isSolvedV = 1;
     int max_threads = 3;
+    pthread_t *threads = malloc(sizeof(pthread_t) * max_threads);
     for (int i = 0; i < max_threads; ++i)
     {
         isSolvedParams *isSolvedParam = malloc(sizeof(isSolvedParams));
@@ -731,17 +762,18 @@ void *solveSudoku(void *params) // TODO: limitare spawn dei thread nel metodo ra
 
     if (isSolvedV == 1)
     {
-        return 0; // 1;
+        return 0;
     }
     else
     {
-        // pick the random cell with value 0
+        // pick a random cell with value 0
         int r, c;
-        do {
+        do
+        {
             int index = rand() % (n * n);
             r = index / n;
             c = index % n;
-        } while((sudoku[r] + c)->val != 0);
+        } while ((sudoku[r] + c)->val != 0);
 
         // for each possible value, try to solve the sudoku
         int len = lengthList((sudoku[r] + c)->poss);
