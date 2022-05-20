@@ -54,6 +54,8 @@ typedef struct loneRangerParams
     possRCG **possRcg; // possible values for each row/column/grid
     int n;             // size of sudoku
     int *changed;      // 0 := not changed, 1 := changed, -1 := invalid
+    int max_threads;   // max number of threads
+    int n_thread;      // number of current thread
 } loneRangerParams;
 
 typedef struct solveSudokuParams
@@ -73,6 +75,20 @@ typedef struct isSolvedParams
     int max_threads; // max number of threads
     int n_thread;    // number of current thread
 } isSolvedParams;
+
+typedef struct cloneSudokuParams
+{
+    cell **sudoku; // sudoku
+    int n;         // size of sudoku
+    cell **clone;  // clone of sudoku
+} cloneSudokuParams;
+
+typedef struct clonePossRCGParams
+{
+    possRCG **possRcg; // possible values for each row/column/grid
+    int n;             // size of sudoku
+    possRCG **clone;   // clone of possRcg
+} possRCGParams;
 
 // Read sudoku from file and return a 2D array of cells
 cell **readSudoku(int *n, possRCG ***possRows, possRCG ***possColumns, possRCG ***possGrids, const char *filename)
@@ -137,10 +153,13 @@ cell **readSudoku(int *n, possRCG ***possRows, possRCG ***possColumns, possRCG *
     return NULL;
 }
 
-// Return a copy of sudoku
-cell **cloneSudoku(cell **sudoku, const int n)
+// Copy a sudoku
+void *cloneSudoku(void *params)
 {
-    cell **clone = malloc(n * sizeof(cell *));
+    cell **sudoku = ((cloneSudokuParams *)params)->sudoku;
+    int n = ((cloneSudokuParams *)params)->n;
+    cell **clone = ((cloneSudokuParams *)params)->clone;
+
     for (int i = 0; i < n; i++)
     {
         clone[i] = malloc(n * sizeof(cell));
@@ -152,7 +171,8 @@ cell **cloneSudoku(cell **sudoku, const int n)
             pthread_mutex_init(&((clone[i] + j)->mutex), NULL);
         }
     }
-    return clone;
+    free(params);
+    return 0;
 }
 
 // Destroy and free memory of sudoku (2D array of cells)
@@ -183,17 +203,21 @@ void destroyPossRCGArray(possRCG **l, const int n)
     l = NULL;
 }
 
-// Return a copy of l (array of possRCG)
-possRCG **clonePossRCGArray(possRCG **l, const int n)
+// Copy an array of possRCG
+void *clonePossRCGArray(void *params)
 {
-    possRCG **clone = malloc(n * sizeof(possRCG *));
+    possRCG **l = ((possRCGParams *)params)->possRcg;
+    int n = ((possRCGParams *)params)->n;
+    possRCG **clone = ((possRCGParams *)params)->clone;
+
     for (int i = 0; i < n; i++)
     {
         clone[i] = malloc(sizeof(possRCG));
         clone[i]->poss = cloneListCount(l[i]->poss);
         pthread_mutex_init(&(clone[i]->mutex), NULL);
     }
-    return clone;
+    free(params);
+    return 0;
 }
 
 // Print the sudoku. If debug = 1, print the possible values of each cell, else print the value of each cell.
@@ -506,8 +530,18 @@ void *solveLoneRangerR(void *params)
     cell **sudoku = ((loneRangerParams *)params)->sudoku;
     possRCG **possRcg = ((loneRangerParams *)params)->possRcg;
     int n = ((loneRangerParams *)params)->n;
+    int n_thread = ((loneRangerParams *)params)->n_thread;
+    int max_threads = ((loneRangerParams *)params)->max_threads;
 
-    for (int i = 0; i < n; i++) // for every row
+    int portion = n / max_threads;
+    int start = portion * n_thread;
+    int end = portion * (n_thread + 1);
+    if (n_thread == max_threads - 1)
+    {
+        end = n;
+    }
+
+    for (int i = start; i < end; i++) // for every row
     {
         int lastVal = 0;
         pthread_mutex_lock(&(possRcg[i]->mutex));
@@ -538,6 +572,7 @@ void *solveLoneRangerR(void *params)
         }
         pthread_mutex_unlock(&(possRcg[i]->mutex));
     }
+    free(params);
     return 0;
 }
 
@@ -547,8 +582,18 @@ void *solveLoneRangerC(void *params)
     cell **sudoku = ((loneRangerParams *)params)->sudoku;
     possRCG **possRcg = ((loneRangerParams *)params)->possRcg;
     int n = ((loneRangerParams *)params)->n;
+    int n_thread = ((loneRangerParams *)params)->n_thread;
+    int max_threads = ((loneRangerParams *)params)->max_threads;
 
-    for (int i = 0; i < n; i++) // for every column
+    int portion = n / max_threads;
+    int start = portion * n_thread;
+    int end = portion * (n_thread + 1);
+    if (n_thread == max_threads - 1)
+    {
+        end = n;
+    }
+
+    for (int i = start; i < end; i++) // for every column
     {
         int lastVal = 0;
         pthread_mutex_lock(&(possRcg[i]->mutex));
@@ -579,6 +624,7 @@ void *solveLoneRangerC(void *params)
         }
         pthread_mutex_unlock(&(possRcg[i]->mutex));
     }
+    free(params);
     return 0;
 }
 
@@ -588,9 +634,19 @@ void *solveLoneRangerG(void *params)
     cell **sudoku = ((loneRangerParams *)params)->sudoku;
     possRCG **possRcg = ((loneRangerParams *)params)->possRcg;
     int n = ((loneRangerParams *)params)->n;
+    int n_thread = ((loneRangerParams *)params)->n_thread;
+    int max_threads = ((loneRangerParams *)params)->max_threads;
+
+    int portion = n / max_threads;
+    int start = portion * n_thread;
+    int end = portion * (n_thread + 1);
+    if (n_thread == max_threads - 1)
+    {
+        end = n;
+    }
 
     int sqrtN = sqrt(n);
-    for (int i = 0; i < n; i++) // for every grid
+    for (int i = start; i < end; i++) // for every grid
     {
         int r = i / sqrtN * sqrtN;
         int c = i % sqrtN * sqrtN;
@@ -626,6 +682,7 @@ void *solveLoneRangerG(void *params)
         }
         pthread_mutex_unlock(&(possRcg[i]->mutex));
     }
+    free(params);
     return 0;
 }
 
@@ -655,6 +712,7 @@ void *isSolved(void *params)
             break;
         }
     }
+    free(params);
     return 0;
 }
 
@@ -730,33 +788,42 @@ void *solveSudoku(void *params) // TODO: limitare spawn dei thread nel metodo ra
 
         // ### LONE RANGERS ###
         int changed_loneranger = 0;
-        pthread_t *threads = malloc(sizeof(pthread_t) * 3);
+        int max_threads = 1;
+        pthread_t *threads = malloc(sizeof(pthread_t) * 3 * max_threads);
+        for (int i = 0; i < max_threads; ++i)
+        {
+            // spawn thread solving lone rangers on every row
+            loneRangerParams *loneranger = malloc(sizeof(loneRangerParams));
+            loneranger->sudoku = sudoku;
+            loneranger->possRcg = possRows;
+            loneranger->n = n;
+            loneranger->changed = &changed_loneranger;
+            loneranger->n_thread = i;
+            loneranger->max_threads = max_threads;
+            pthread_create(&threads[i * 3], NULL, solveLoneRangerR, (void *)loneranger);
 
-        // spawn thread solving lone rangers on every row
-        loneRangerParams *loneranger = malloc(sizeof(loneRangerParams));
-        loneranger->sudoku = sudoku;
-        loneranger->possRcg = possRows;
-        loneranger->n = n;
-        loneranger->changed = &changed_loneranger;
-        pthread_create(&threads[0], NULL, solveLoneRangerR, (void *)loneranger);
+            // spawn threads solving lone rangers on every column
+            loneranger = malloc(sizeof(loneRangerParams));
+            loneranger->sudoku = sudoku;
+            loneranger->possRcg = possColumns;
+            loneranger->n = n;
+            loneranger->changed = &changed_loneranger;
+            loneranger->n_thread = i;
+            loneranger->max_threads = max_threads;
+            pthread_create(&threads[i * 3 + 1], NULL, solveLoneRangerC, (void *)loneranger);
 
-        // spawn threads solving lone rangers on every column
-        loneranger = malloc(sizeof(loneRangerParams));
-        loneranger->sudoku = sudoku;
-        loneranger->possRcg = possColumns;
-        loneranger->n = n;
-        loneranger->changed = &changed_loneranger;
-        pthread_create(&threads[1], NULL, solveLoneRangerC, (void *)loneranger);
-
-        // spawn threads solving lone rangers on every grid
-        loneranger = malloc(sizeof(loneRangerParams));
-        loneranger->sudoku = sudoku;
-        loneranger->possRcg = possGrids;
-        loneranger->n = n;
-        loneranger->changed = &changed_loneranger;
-        pthread_create(&threads[2], NULL, solveLoneRangerG, (void *)loneranger);
+            // spawn threads solving lone rangers on every grid
+            loneranger = malloc(sizeof(loneRangerParams));
+            loneranger->sudoku = sudoku;
+            loneranger->possRcg = possGrids;
+            loneranger->n = n;
+            loneranger->changed = &changed_loneranger;
+            loneranger->n_thread = i;
+            loneranger->max_threads = max_threads;
+            pthread_create(&threads[i * 3 + 2], NULL, solveLoneRangerG, (void *)loneranger);
+        }
         // wait threads to finish
-        for (int i = 0; i < 3; ++i)
+        for (int i = 0; i < max_threads * 3; ++i)
         {
             pthread_join(threads[i], NULL);
         }
@@ -807,10 +874,41 @@ void *solveSudoku(void *params) // TODO: limitare spawn dei thread nel metodo ra
         int i = 0;
         for (list *l = (sudoku[r] + c)->poss; l != NULL; l = l->next)
         {
-            cell **sudokuClone = cloneSudoku(sudoku, n);
-            possRCG **possRowsClone = clonePossRCGArray(possRows, n);
-            possRCG **possColumnsClone = clonePossRCGArray(possColumns, n);
-            possRCG **possGridsClone = clonePossRCGArray(possGrids, n);
+            cell **sudokuClone = malloc(n * sizeof(cell *));;
+            possRCG **possRowsClone = malloc(n * sizeof(possRCG *));
+            possRCG **possColumnsClone  = malloc(n * sizeof(possRCG *));
+            possRCG **possGridsClone  = malloc(n * sizeof(possRCG *));
+            pthread_t *threadsB = malloc(sizeof(pthread_t) * 4);
+
+            cloneSudokuParams *sudokuParam = malloc(sizeof(cloneSudokuParams));
+            sudokuParam->sudoku = sudoku;
+            sudokuParam->n = n;
+            sudokuParam->clone = sudokuClone;
+            pthread_create(&threadsB[0], NULL, cloneSudoku, (void *)sudokuParam);
+
+            possRCGParams *possRCGParam = malloc(sizeof(possRCGParams));
+            possRCGParam->possRcg = possRows;
+            possRCGParam->n = n;
+            possRCGParam->clone = possRowsClone;
+            pthread_create(&threadsB[1], NULL, clonePossRCGArray, (void *)possRCGParam);
+
+            possRCGParam = malloc(sizeof(possRCGParams));
+            possRCGParam->possRcg = possColumns;
+            possRCGParam->n = n;
+            possRCGParam->clone = possColumnsClone;
+            pthread_create(&threadsB[2], NULL, clonePossRCGArray, (void *)possRCGParam);
+
+            possRCGParam = malloc(sizeof(possRCGParams));
+            possRCGParam->possRcg = possGrids;
+            possRCGParam->n = n;
+            possRCGParam->clone = possGridsClone;
+            pthread_create(&threadsB[3], NULL, clonePossRCGArray, (void *)possRCGParam);
+
+            pthread_join(threadsB[0], NULL);
+            pthread_join(threadsB[1], NULL);
+            pthread_join(threadsB[2], NULL);
+            pthread_join(threadsB[3], NULL);
+            free(threadsB);
 
             (sudokuClone[r] + c)->val = l->val;
 
@@ -822,8 +920,25 @@ void *solveSudoku(void *params) // TODO: limitare spawn dei thread nel metodo ra
 
             // pthread_create(&threads[i], NULL, solveSudoku, (void *)(sudokuParams + i));
 
-            // JUST TO TEST
-            solveSudoku((void *)(sudokuParams + i));
+            // // JUST TO TEST
+            // solveSudoku((void *)(sudokuParams + i));
+            // if ((sudokuParams + i)->sudoku != NULL)
+            // {
+            //     // destroySudoku(sudoku, n);
+            //     ((solveSudokuParams *)params)->sudoku = (sudokuParams + i)->sudoku;
+            //     // TODO: need to kill all other children threads
+            //     return 0; // 1;
+            // }
+            // //\JUST TO TEST
+
+            i++;
+        }
+        for (int i = 0; i < len; i++)
+        {
+            pthread_join(threads[i], NULL);
+            destroyPossRCGArray((sudokuParams + i)->possRows, n);
+            destroyPossRCGArray((sudokuParams + i)->possColumns, n);
+            destroyPossRCGArray((sudokuParams + i)->possGrids, n);
             if ((sudokuParams + i)->sudoku != NULL)
             {
                 // destroySudoku(sudoku, n);
@@ -831,29 +946,11 @@ void *solveSudoku(void *params) // TODO: limitare spawn dei thread nel metodo ra
                 // TODO: need to kill all other children threads
                 return 0; // 1;
             }
-            //\JUST TO TEST
-
-            i++;
+            else
+            {
+                // destroySudoku(sudoku, n);
+            }
         }
-        // for (int i = 0; i < len; i++)
-        // {
-        //     pthread_join(threads[i], NULL);
-        //     // cell **solvedSudoku = solveSudoku(sudokuClone, possRowsClone, possColumnsClone, possGridsClone, n);
-        //     destroyPossRCGArray((sudokuParams + i)->possRows, n);
-        //     destroyPossRCGArray((sudokuParams + i)->possColumns, n);
-        //     destroyPossRCGArray((sudokuParams + i)->possGrids, n);
-        //     if ((sudokuParams + i)->sudoku != NULL)
-        //     {
-        //         // destroySudoku(sudoku, n);
-        //         ((solveSudokuParams *)params)->sudoku = (sudokuParams + i)->sudoku;
-        //         // TODO: need to kill all other children threads
-        //         return 0; // 1;
-        //     }
-        //     else
-        //     {
-        //         // destroySudoku(sudoku, n);
-        //     }
-        // }
         free(threads);
         ((solveSudokuParams *)params)->sudoku = NULL;
     }
