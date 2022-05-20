@@ -7,7 +7,7 @@ typedef struct list
     struct list *next;
 } list;
 
-//Return a linked list with values from 1 to n
+// Return a linked list with values from 1 to n
 list *getList(int n)
 {
     list *last = (list *)malloc(sizeof(list));
@@ -23,7 +23,7 @@ list *getList(int n)
     return last;
 }
 
-//Print the list l
+// Print the list l
 void printPossList(list *l)
 {
     if (l == NULL)
@@ -35,13 +35,30 @@ void printPossList(list *l)
     list *tmp = l;
     while (tmp->next != NULL)
     {
-        printf("%d or ", tmp->val);
+        if (tmp->val <= 15)
+        {
+            printf("%X or ", tmp->val);
+        }
+        else
+        {
+            char c = 'F' + (tmp->val - 15);
+            printf("%c or ", c);
+        }
         tmp = tmp->next;
     }
-    printf("%d \n", tmp->val);
+    
+    if (tmp->val <= 15)
+    {
+        printf("%X \n", tmp->val);
+    }
+    else
+    {
+        char c = 'F' + (tmp->val - 15);
+        printf("%c \n", c);
+    }
 }
 
-//Destroy the list l
+// Destroy the list l
 void destroyList(list **l)
 {
     list *prev;
@@ -53,7 +70,7 @@ void destroyList(list **l)
     }
 }
 
-//Find the node with value val in the list l and set the pointer to the node to the node before it
+// Find the node with value val in the list l and set the pointer to the node to the node before it
 int findList(list *l, int val, list **node, list **prev)
 {
     if (l == NULL)
@@ -76,7 +93,7 @@ int findList(list *l, int val, list **node, list **prev)
     return 0;
 }
 
-//Remove a node from the list
+// Remove a node from the list
 int removeList(list **l, list **node, list **prev)
 {
     if (*node == NULL || *l == NULL)
@@ -104,7 +121,7 @@ int removeList(list **l, list **node, list **prev)
     return 1;
 }
 
-//Find and removes node with value n from list l
+// Find and removes node with value n from list l
 int findAndRemoveList(list **l, int n)
 {
     list *node = NULL;
@@ -116,7 +133,7 @@ int findAndRemoveList(list **l, int n)
     return 0;
 }
 
-//Return length of the list l
+// Return length of the list l
 int lengthList(list *l)
 {
     int len = 0;
@@ -128,7 +145,7 @@ int lengthList(list *l)
     return len;
 }
 
-//Return 1 if l1 == l2, 0 otherwise
+// Return 1 if l1 == l2, 0 otherwise
 int isEqualList(list *l1, list *l2)
 {
     while (l1 != NULL && l2 != NULL)
@@ -147,15 +164,15 @@ int isEqualList(list *l1, list *l2)
     return 1;
 }
 
-//Return 1 if l1 is a superset of l2, 0 otherwise
+// Return 1 if l1 is a superset of l2, 0 otherwise
 int isContainedList(list *l1, list *l2)
 {
-    //for each value in l2, if it's not n l1 then return 0 else continue
+    // for each value in l2, if it's not n l1 then return 0 else continue
     while (l2 != NULL)
     {
         list *node = NULL;
         list *prev = NULL;
-        //TODO: better efficency
+        // TODO: better efficency
         if (findList(l1, l2->val, &node, &prev) == 0)
         {
             return 0;
@@ -165,7 +182,7 @@ int isContainedList(list *l1, list *l2)
     return 1;
 }
 
-//Remove elements from l1 that are in l2. Return 1 if removed something, 0 otherwise.
+// Remove elements from l1 that are in l2. Return 1 if removed something, 0 otherwise.
 int reduceList(list **l1, list *l2)
 {
     int changed = 0;
@@ -196,7 +213,7 @@ int reduceList(list **l1, list *l2)
     return changed;
 }
 
-//Return a clone of l1
+// Return a clone of l1
 list *cloneList(list *l1)
 {
     list *l2 = NULL;

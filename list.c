@@ -35,10 +35,27 @@ void printPossList(list *l)
     list *tmp = l;
     while (tmp->next != NULL)
     {
-        printf("%d or ", tmp->val);
+        if (tmp->val <= 15)
+        {
+            printf("%X or ", tmp->val);
+        }
+        else
+        {
+            char c = 'F' + (tmp->val - 15);
+            printf("%c or ", c);
+        }
         tmp = tmp->next;
     }
-    printf("%d \n", tmp->val);
+    
+    if (tmp->val <= 15)
+    {
+        printf("%X \n", tmp->val);
+    }
+    else
+    {
+        char c = 'F' + (tmp->val - 15);
+        printf("%c \n", c);
+    }
 }
 
 //Destroy the list l

@@ -38,10 +38,27 @@ void printPossListCount(listCount *l)
     listCount *tmp = l;
     while (tmp->next != NULL)
     {
-        printf("%d (%d) or ", tmp->val, tmp->count);
+        if (tmp->val <= 15)
+        {
+            printf("%X (%d) or ", tmp->val, tmp->count);
+        }
+        else
+        {
+            char c = 'F' + (tmp->val - 15);
+            printf("%c (%d) or ", c, tmp->count);
+        }
         tmp = tmp->next;
     }
-    printf("%d (%d) \n", tmp->val, tmp->count);
+    
+    if (tmp->val <= 15)
+    {
+        printf("%X (%d) or ", tmp->val, tmp->count);
+    }
+    else
+    {
+        char c = 'F' + (tmp->val - 15);
+        printf("%c (%d) \n", c, tmp->count);
+    }
 }
 
 // Destroy the list l

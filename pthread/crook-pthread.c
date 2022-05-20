@@ -6,13 +6,14 @@
 #include <math.h>
 #include <time.h>
 #include <pthread.h>
+#include <ctype.h>
 #include "listCount.c"
 
 // Cell of a Sudoku
 typedef struct cell
 {
     int val;               // value of the cell
-    int changed;           // 0 := not changed, 1 := changed, -1 := invalid //TODO: REMOVE PROBABLY
+    int changed;           // 0 := not changed, 1 := changed, -1 := invalid
     list *poss;            // possible values list from 1 to n where n is size of sudoku
     pthread_mutex_t mutex; // mutex for the cell
 } cell;
@@ -113,7 +114,7 @@ cell **readSudoku(int *n, possRCG ***possRows, possRCG ***possColumns, possRCG *
             (*possColumns)[i] = malloc(*n * sizeof(possRCG));
             (*possGrids)[i] = malloc(*n * sizeof(possRCG));
 
-            // create a listCount of all possible values (from 1 to 9)
+            // create a listCount of all possible values (from 1 to n)
             (*possRows)[i]->poss = getListCount(*n);
             pthread_mutex_init(&(*possRows)[i]->mutex, NULL);
 
@@ -132,11 +133,16 @@ cell **readSudoku(int *n, possRCG ***possRows, possRCG ***possColumns, possRCG *
             sudoku[i] = calloc(*n, sizeof(cell));
             for (int j = 0; j < *n; ++j)
             {
-                int t;
-                fscanf(fp, "%d", &t);
+                int t = -1;
+                if (fscanf(fp, "%X", &t)!=1) {
+                    char c;
+                    fscanf(fp, "%c", &c);
+                    c = tolower(c);
+                    t = (c - 'f') + 15;
+                }
                 // value of cell is the same as the value in the file
                 (sudoku[i] + j)->val = t;
-                // create a list of all possible values (from 1 to 9)
+                // create a list of all possible values (from 1 to n)
                 list *last = getList(*n);
                 (sudoku[i] + j)->poss = last;
                 // init changed to 0
@@ -223,6 +229,7 @@ void *clonePossRCGArray(void *params)
 // Print the sudoku. If debug = 1, print the possible values of each cell, else print the value of each cell.
 void printSudoku(cell **sudoku, possRCG **possRows, possRCG **possColumns, possRCG **possGrids, int n, int debug)
 {
+    int sqrtN = sqrt(n);
     printf("#############################\nSUDOKU ");
     if (debug == 0)
     {
@@ -237,17 +244,22 @@ void printSudoku(cell **sudoku, possRCG **possRows, possRCG **possColumns, possR
     {
         if (debug == 0)
         {
-            if (i % 3 == 0)
+            if (i % sqrtN == 0)
             {
                 printf("----------------------\n");
             }
             for (int j = 0; j < n; ++j)
             {
-                if (j % 3 == 0)
+                if (j % sqrtN == 0)
                 {
                     printf("|");
                 }
-                printf("%d ", (sudoku[i] + j)->val);
+                if((sudoku[i] + j)->val <= 15) {
+                    printf("%X ", (sudoku[i] + j)->val);
+                } else {
+                    char c = 'F' + ((sudoku[i] + j)->val - 15);
+                    printf("%c ", c);
+                }
             }
             printf("|\n");
             if (i == n - 1)
@@ -275,7 +287,7 @@ void printSudoku(cell **sudoku, possRCG **possRows, possRCG **possColumns, possR
             printf("Grid %d = ", i);
             printPossListCount(possGrids[i]->poss);
 
-            printf("Column %i = ", i);
+            printf("Column %d = ", i);
             printPossListCount(possColumns[i]->poss);
             printf("\n");
         }
@@ -717,7 +729,7 @@ void *isSolved(void *params)
 }
 
 // Try to solve the sudoku. Apply solveSingleton, solveLoneRangers, solveTwins repeating every time changes something. If it doesn't change anything, check if it's solved and return the solved sudoku. If it's not solved, try guessing a value and solve again. If sudoku is unsolvable, return NULL.
-void *solveSudoku(void *params) // TODO: limitare spawn dei thread nel metodo random oppure trovare modo per killarli quando uno dei thread riesce
+void *solveSudoku(void *params)
 {
     int n = ((solveSudokuParams *)params)->n;
     cell **sudoku = ((solveSudokuParams *)params)->sudoku;
@@ -733,7 +745,7 @@ void *solveSudoku(void *params) // TODO: limitare spawn dei thread nel metodo ra
             changed = 0;
 
             // ### MARKUP ###
-            int max_threads = 1;
+            int max_threads = 2;
             int isValid = 1;
             pthread_t *threads = malloc(sizeof(pthread_t) * max_threads);
             for (int i = 0; i < max_threads; ++i)
@@ -920,25 +932,8 @@ void *solveSudoku(void *params) // TODO: limitare spawn dei thread nel metodo ra
 
             // pthread_create(&threads[i], NULL, solveSudoku, (void *)(sudokuParams + i));
 
-            // // JUST TO TEST
-            // solveSudoku((void *)(sudokuParams + i));
-            // if ((sudokuParams + i)->sudoku != NULL)
-            // {
-            //     // destroySudoku(sudoku, n);
-            //     ((solveSudokuParams *)params)->sudoku = (sudokuParams + i)->sudoku;
-            //     // TODO: need to kill all other children threads
-            //     return 0; // 1;
-            // }
-            // //\JUST TO TEST
-
-            i++;
-        }
-        for (int i = 0; i < len; i++)
-        {
-            pthread_join(threads[i], NULL);
-            destroyPossRCGArray((sudokuParams + i)->possRows, n);
-            destroyPossRCGArray((sudokuParams + i)->possColumns, n);
-            destroyPossRCGArray((sudokuParams + i)->possGrids, n);
+            // JUST TO TEST
+            solveSudoku((void *)(sudokuParams + i));
             if ((sudokuParams + i)->sudoku != NULL)
             {
                 // destroySudoku(sudoku, n);
@@ -946,11 +941,28 @@ void *solveSudoku(void *params) // TODO: limitare spawn dei thread nel metodo ra
                 // TODO: need to kill all other children threads
                 return 0; // 1;
             }
-            else
-            {
-                // destroySudoku(sudoku, n);
-            }
+            //\JUST TO TEST
+
+            i++;
         }
+        // for (int i = 0; i < len; i++)
+        // {
+        //     pthread_join(threads[i], NULL);
+        //     destroyPossRCGArray((sudokuParams + i)->possRows, n);
+        //     destroyPossRCGArray((sudokuParams + i)->possColumns, n);
+        //     destroyPossRCGArray((sudokuParams + i)->possGrids, n);
+        //     if ((sudokuParams + i)->sudoku != NULL)
+        //     {
+        //         // destroySudoku(sudoku, n);
+        //         ((solveSudokuParams *)params)->sudoku = (sudokuParams + i)->sudoku;
+        //         // TODO: need to kill all other children threads
+        //         return 0; // 1;
+        //     }
+        //     else
+        //     {
+        //         // destroySudoku(sudoku, n);
+        //     }
+        // }
         free(threads);
         ((solveSudokuParams *)params)->sudoku = NULL;
     }
@@ -1002,6 +1014,3 @@ int main(void)
 
     return 0;
 }
-
-// TODO: fare un controllo di quali metodi impiegano più tempo per capire se è ottimizzabile
-// TODO: continuare a implementare i metodi in multithreading con il parametro max_threads in modo da trovare il numero migliore per ottimizzare, dopodiché trovare un modo per le chiamate ricorsive

@@ -4,6 +4,7 @@
 #include <errno.h>
 #include <math.h>
 #include <time.h>
+#include <ctype.h>
 #include "listCount.c"
 
 typedef struct cell
@@ -32,7 +33,7 @@ cell **readSudoku(int *n, listCount ***possRows, listCount ***possColumns, listC
         *possGrids = malloc(*n * sizeof(listCount *));
         for (int i = 0; i < *n; i++)
         {
-            // create a listCount of all possible values (from 1 to 9)
+            // create a listCount of all possible values (from 1 to n)
             listCount *last = getListCount(*n);
             (*possRows)[i] = last;
 
@@ -51,12 +52,17 @@ cell **readSudoku(int *n, listCount ***possRows, listCount ***possColumns, listC
             sudoku[i] = calloc(*n, sizeof(cell));
             for (int j = 0; j < *n; ++j)
             {
-                int t;
-                fscanf(fp, "%d", &t);
+                int t = -1;
+                if (fscanf(fp, "%X", &t)!=1) {
+                    char c;
+                    fscanf(fp, "%c", &c);
+                    c = tolower(c);
+                    t = (c - 'f') + 15;
+                }
                 // value of cell is the same as the value in the file
                 (sudoku[i] + j)->val = t;
                 (sudoku[i] + j)->changed = 0;
-                // create a list of all possible values (from 1 to 9)
+                // create a list of all possible values (from 1 to n)
                 list *last = getList(*n);
                 (sudoku[i] + j)->poss = last;
             }
@@ -127,6 +133,7 @@ listCount **cloneListCountArray(listCount **l, int n)
 // Print the sudoku. If debug = 1, print the possible values of each cell, else print the value of each cell.
 void printSudoku(cell **sudoku, listCount **possRows, listCount **possColumns, listCount **possGrids, int n, int debug)
 {
+    int sqrtN = sqrt(n);
     printf("#############################\nSUDOKU ");
     if (debug == 0)
     {
@@ -141,17 +148,22 @@ void printSudoku(cell **sudoku, listCount **possRows, listCount **possColumns, l
     {
         if (debug == 0)
         {
-            if (i % 3 == 0)
+            if (i % sqrtN == 0)
             {
                 printf("----------------------\n");
             }
             for (int j = 0; j < n; ++j)
             {
-                if (j % 3 == 0)
+                if (j % sqrtN == 0)
                 {
                     printf("|");
                 }
-                printf("%d ", (sudoku[i] + j)->val);
+                if((sudoku[i] + j)->val <= 15) {
+                    printf("%X ", (sudoku[i] + j)->val);
+                } else {
+                    char c = 'F' + ((sudoku[i] + j)->val - 15);
+                    printf("%c ", c);
+                }
             }
             printf("|\n");
             if (i == n - 1)
@@ -179,7 +191,7 @@ void printSudoku(cell **sudoku, listCount **possRows, listCount **possColumns, l
             printf("Grid %d = ", i);
             printPossListCount(possGrids[i]);
 
-            printf("Column %i = ", i);
+            printf("Column %d = ", i);
             printPossListCount(possColumns[i]);
             printf("\n");
         }
@@ -583,6 +595,7 @@ int main(void)
         fprintf(stderr, "Could not read sudoku\n");
         return 1;
     }
+    printSudoku(sudoku, possRows, possColumns, possGrids, n, 0);
 
     clock_t begin = clock();
 
