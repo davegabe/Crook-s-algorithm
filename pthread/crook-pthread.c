@@ -1,4 +1,3 @@
-// TODO: PARALLEL CLONE METHODS (and eventually destroy methods)
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -8,6 +7,9 @@
 #include <pthread.h>
 #include <ctype.h>
 #include "listCount.c"
+
+int max_recursion_threads = 3;
+pthread_mutex_t max_recursion_threads_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 // Cell of a Sudoku
 typedef struct cell
@@ -134,7 +136,8 @@ cell **readSudoku(int *n, possRCG ***possRows, possRCG ***possColumns, possRCG *
             for (int j = 0; j < *n; ++j)
             {
                 int t = -1;
-                if (fscanf(fp, "%X", &t)!=1) {
+                if (fscanf(fp, "%X", &t) != 1)
+                {
                     char c;
                     fscanf(fp, "%c", &c);
                     c = tolower(c);
@@ -254,9 +257,12 @@ void printSudoku(cell **sudoku, possRCG **possRows, possRCG **possColumns, possR
                 {
                     printf("|");
                 }
-                if((sudoku[i] + j)->val <= 15) {
+                if ((sudoku[i] + j)->val <= 15)
+                {
                     printf("%X ", (sudoku[i] + j)->val);
-                } else {
+                }
+                else
+                {
                     char c = 'F' + ((sudoku[i] + j)->val - 15);
                     printf("%c ", c);
                 }
@@ -745,7 +751,7 @@ void *solveSudoku(void *params)
             changed = 0;
 
             // ### MARKUP ###
-            int max_threads = 2;
+            int max_threads = 1;
             int isValid = 1;
             pthread_t *threads = malloc(sizeof(pthread_t) * max_threads);
             for (int i = 0; i < max_threads; ++i)
@@ -883,13 +889,16 @@ void *solveSudoku(void *params)
         int len = lengthList((sudoku[r] + c)->poss);
         solveSudokuParams *sudokuParams = malloc(sizeof(solveSudokuParams) * len);
         pthread_t *threads = malloc(sizeof(pthread_t) * len);
-        int i = 0;
+        int *thread_params = malloc(sizeof(int) * len);
+        int n_threads = 0;
+        int n_params = 0;
         for (list *l = (sudoku[r] + c)->poss; l != NULL; l = l->next)
         {
-            cell **sudokuClone = malloc(n * sizeof(cell *));;
+            cell **sudokuClone = malloc(n * sizeof(cell *));
+
             possRCG **possRowsClone = malloc(n * sizeof(possRCG *));
-            possRCG **possColumnsClone  = malloc(n * sizeof(possRCG *));
-            possRCG **possGridsClone  = malloc(n * sizeof(possRCG *));
+            possRCG **possColumnsClone = malloc(n * sizeof(possRCG *));
+            possRCG **possGridsClone = malloc(n * sizeof(possRCG *));
             pthread_t *threadsB = malloc(sizeof(pthread_t) * 4);
 
             cloneSudokuParams *sudokuParam = malloc(sizeof(cloneSudokuParams));
@@ -897,24 +906,28 @@ void *solveSudoku(void *params)
             sudokuParam->n = n;
             sudokuParam->clone = sudokuClone;
             pthread_create(&threadsB[0], NULL, cloneSudoku, (void *)sudokuParam);
+            // cloneSudoku((void *)sudokuParam);
 
             possRCGParams *possRCGParam = malloc(sizeof(possRCGParams));
             possRCGParam->possRcg = possRows;
             possRCGParam->n = n;
             possRCGParam->clone = possRowsClone;
             pthread_create(&threadsB[1], NULL, clonePossRCGArray, (void *)possRCGParam);
+            // clonePossRCGArray((void *)possRCGParam);
 
             possRCGParam = malloc(sizeof(possRCGParams));
             possRCGParam->possRcg = possColumns;
             possRCGParam->n = n;
             possRCGParam->clone = possColumnsClone;
             pthread_create(&threadsB[2], NULL, clonePossRCGArray, (void *)possRCGParam);
+            // clonePossRCGArray((void *)possRCGParam);
 
             possRCGParam = malloc(sizeof(possRCGParams));
             possRCGParam->possRcg = possGrids;
             possRCGParam->n = n;
             possRCGParam->clone = possGridsClone;
             pthread_create(&threadsB[3], NULL, clonePossRCGArray, (void *)possRCGParam);
+            // clonePossRCGArray((void *)possRCGParam);
 
             pthread_join(threadsB[0], NULL);
             pthread_join(threadsB[1], NULL);
@@ -924,45 +937,56 @@ void *solveSudoku(void *params)
 
             (sudokuClone[r] + c)->val = l->val;
 
-            (sudokuParams + i)->sudoku = sudokuClone;
-            (sudokuParams + i)->possRows = possRowsClone;
-            (sudokuParams + i)->possColumns = possColumnsClone;
-            (sudokuParams + i)->possGrids = possGridsClone;
-            (sudokuParams + i)->n = n;
+            (sudokuParams + n_params)->sudoku = sudokuClone;
+            (sudokuParams + n_params)->possRows = possRowsClone;
+            (sudokuParams + n_params)->possColumns = possColumnsClone;
+            (sudokuParams + n_params)->possGrids = possGridsClone;
+            (sudokuParams + n_params)->n = n;
 
-            // pthread_create(&threads[i], NULL, solveSudoku, (void *)(sudokuParams + i));
-
-            // JUST TO TEST
-            solveSudoku((void *)(sudokuParams + i));
+            if (max_recursion_threads > 0)
+            {
+                pthread_create(&threads[n_threads], NULL, solveSudoku, (void *)(sudokuParams + n_params));
+                thread_params[n_threads] = n_params;
+                n_threads++;
+                pthread_mutex_lock(&max_recursion_threads_mutex);
+                max_recursion_threads--;
+                pthread_mutex_unlock(&max_recursion_threads_mutex);
+            }
+            else
+            {
+                solveSudoku((void *)(sudokuParams + n_params));
+                if ((sudokuParams + n_params)->sudoku != NULL)
+                {
+                    // destroySudoku(sudoku, n);
+                    ((solveSudokuParams *)params)->sudoku = (sudokuParams + n_params)->sudoku;
+                    // TODO: need to kill all other children threads
+                    return 0; // 1;
+                }
+            }
+            n_params++;
+        }
+        for (int i = 0; i < n_threads; i++)
+        {
+            pthread_join(threads[i], NULL);
+            int n_params = thread_params[i];
+            destroyPossRCGArray((sudokuParams + n_params)->possRows, n);
+            destroyPossRCGArray((sudokuParams + n_params)->possColumns, n);
+            destroyPossRCGArray((sudokuParams + n_params)->possGrids, n);
             if ((sudokuParams + i)->sudoku != NULL)
             {
                 // destroySudoku(sudoku, n);
-                ((solveSudokuParams *)params)->sudoku = (sudokuParams + i)->sudoku;
+                ((solveSudokuParams *)params)->sudoku = (sudokuParams + n_params)->sudoku;
                 // TODO: need to kill all other children threads
                 return 0; // 1;
             }
-            //\JUST TO TEST
-
-            i++;
+            else
+            {
+                // destroySudoku(sudoku, n);
+            }
         }
-        // for (int i = 0; i < len; i++)
-        // {
-        //     pthread_join(threads[i], NULL);
-        //     destroyPossRCGArray((sudokuParams + i)->possRows, n);
-        //     destroyPossRCGArray((sudokuParams + i)->possColumns, n);
-        //     destroyPossRCGArray((sudokuParams + i)->possGrids, n);
-        //     if ((sudokuParams + i)->sudoku != NULL)
-        //     {
-        //         // destroySudoku(sudoku, n);
-        //         ((solveSudokuParams *)params)->sudoku = (sudokuParams + i)->sudoku;
-        //         // TODO: need to kill all other children threads
-        //         return 0; // 1;
-        //     }
-        //     else
-        //     {
-        //         // destroySudoku(sudoku, n);
-        //     }
-        // }
+        pthread_mutex_lock(&max_recursion_threads_mutex);
+        max_recursion_threads += n_threads;
+        pthread_mutex_unlock(&max_recursion_threads_mutex);
         free(threads);
         ((solveSudokuParams *)params)->sudoku = NULL;
     }
@@ -995,7 +1019,6 @@ int main(void)
 
     clock_t end = clock();
 
-    // if (isSolved(sudokuParams->sudoku, possRows, possColumns, possGrids, n) == 1)
     if (sudokuParams->sudoku != NULL)
     {
         printSudoku(sudokuParams->sudoku, possRows, possColumns, possGrids, n, 0);
@@ -1004,7 +1027,6 @@ int main(void)
     else
     {
         printf("Sudoku not solved!\n");
-        // printSudoku(sudokuParams->sudoku, possRows, possColumns, possGrids, n, 0);
     }
 
     destroySudoku(sudokuParams->sudoku, n);
