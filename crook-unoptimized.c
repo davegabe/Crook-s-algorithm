@@ -1,3 +1,4 @@
+#include <dirent.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -53,7 +54,8 @@ cell **readSudoku(int *n, listCount ***possRows, listCount ***possColumns, listC
             for (int j = 0; j < *n; ++j)
             {
                 int t = -1;
-                if (fscanf(fp, "%X", &t)!=1) {
+                if (fscanf(fp, "%X", &t) != 1)
+                {
                     char c;
                     fscanf(fp, "%c", &c);
                     c = tolower(c);
@@ -158,9 +160,12 @@ void printSudoku(cell **sudoku, listCount **possRows, listCount **possColumns, l
                 {
                     printf("|");
                 }
-                if((sudoku[i] + j)->val <= 15) {
+                if ((sudoku[i] + j)->val <= 15)
+                {
                     printf("%X ", (sudoku[i] + j)->val);
-                } else {
+                }
+                else
+                {
                     char c = 'F' + ((sudoku[i] + j)->val - 15);
                     printf("%c ", c);
                 }
@@ -506,6 +511,7 @@ int isSolved(cell **sudoku, listCount **possRows, listCount **possColumns, listC
 // Try to solve the sudoku. Apply solveSingleton, solveLoneRangers, solveTwins repeating every time changes something. If it doesn't change anything, check if it's solved and return the solved sudoku. If it's not solved, try guessing a value and solve again. If sudoku is unsolvable, return NULL.
 cell **solveSudoku(cell **sudoku, listCount **possRows, listCount **possColumns, listCount **possGrids, int n)
 {
+    srand(time(NULL));
     int changed;
     do
     {
@@ -584,41 +590,64 @@ cell **solveSudoku(cell **sudoku, listCount **possRows, listCount **possColumns,
 
 int main(void)
 {
-    int n = 0;
-    listCount **possRows = NULL;
-    listCount **possColumns = NULL;
-    listCount **possGrids = NULL;
-    cell **sudoku = readSudoku(&n, &possRows, &possColumns, &possGrids, "sudoku-examples/sudoku.txt");
-
-    if (sudoku == NULL)
+    DIR *d;
+    struct dirent *dir;
+    char *path = "sudoku-examples/hex/";
+    d = opendir(path);
+    long total_time = 0;
+    int n_sudokus = 0;
+    if (d)
     {
-        fprintf(stderr, "Could not read sudoku\n");
-        return 1;
+        while ((dir = readdir(d)) != NULL)
+        {
+            if (dir->d_name[0] == '.')
+                continue;
+            
+
+            n_sudokus++;
+            char fileSudoku[100];
+            strcpy(fileSudoku, path);
+            strcat(fileSudoku, dir->d_name);
+            printf("%s\n", fileSudoku);
+            int n = 0;
+            listCount **possRows = NULL;
+            listCount **possColumns = NULL;
+            listCount **possGrids = NULL;
+            cell **sudoku = readSudoku(&n, &possRows, &possColumns, &possGrids, fileSudoku);
+
+            if (sudoku == NULL)
+            {
+                fprintf(stderr, "Could not read sudoku\n");
+                return 1;
+            }
+
+            clock_t begin = clock();
+
+            cell **solvedSudoku = solveSudoku(sudoku, possRows, possColumns, possGrids, n);
+
+            clock_t end = clock();
+            total_time += (end - begin);
+
+            if (solvedSudoku != NULL)
+            {
+                printSudoku(solvedSudoku, possRows, possColumns, possGrids, n, 0);
+                printf("Sudoku solved in %f seconds\n", (double)(end - begin) / CLOCKS_PER_SEC);
+                destroySudoku(solvedSudoku, n);
+            }
+            else
+            {
+                printf("Sudoku not solved!\n");
+                destroySudoku(sudoku, n);
+            }
+
+            destroyListCountArray(possRows, n);
+            destroyListCountArray(possColumns, n);
+            destroyListCountArray(possGrids, n);
+        }
+        closedir(d);
+        printf("############################################################\n");
+        printf("Solved %d sudokus in %f seconds\n", n_sudokus, (double)total_time / CLOCKS_PER_SEC);
+        printf("Average time: %f seconds\n", (double)total_time / CLOCKS_PER_SEC / n_sudokus);
     }
-    printSudoku(sudoku, possRows, possColumns, possGrids, n, 0);
-
-    clock_t begin = clock();
-
-    cell **solvedSudoku = solveSudoku(sudoku, possRows, possColumns, possGrids, n);
-
-    clock_t end = clock();
-
-    if (solvedSudoku != NULL)
-    {
-        printSudoku(solvedSudoku, possRows, possColumns, possGrids, n, 0);
-        printf("Sudoku solved in %f seconds\n", (double)(end - begin) / CLOCKS_PER_SEC);
-        destroySudoku(solvedSudoku, n);
-    }
-    else
-    {
-        printf("Sudoku not solved!\n");
-        // printSudoku(sudoku, possRows, possColumns, possGrids, n, 1);
-        destroySudoku(sudoku, n);
-    }
-
-    destroyListCountArray(possRows, n);
-    destroyListCountArray(possColumns, n);
-    destroyListCountArray(possGrids, n);
-
     return 0;
 }

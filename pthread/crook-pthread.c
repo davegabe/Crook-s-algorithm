@@ -1,3 +1,4 @@
+#include <dirent.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -7,8 +8,10 @@
 #include <pthread.h>
 #include <ctype.h>
 #include "listCount.c"
+#define MAX_RECURSION 4
 
-int max_recursion_threads = 3;
+int isSudokuSolved = 0;
+int max_recursion_threads = MAX_RECURSION;
 pthread_mutex_t max_recursion_threads_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 // Cell of a Sudoku
@@ -737,6 +740,7 @@ void *isSolved(void *params)
 // Try to solve the sudoku. Apply solveSingleton, solveLoneRangers, solveTwins repeating every time changes something. If it doesn't change anything, check if it's solved and return the solved sudoku. If it's not solved, try guessing a value and solve again. If sudoku is unsolvable, return NULL.
 void *solveSudoku(void *params)
 {
+    srand(time(NULL));
     int n = ((solveSudokuParams *)params)->n;
     cell **sudoku = ((solveSudokuParams *)params)->sudoku;
     possRCG **possRows = ((solveSudokuParams *)params)->possRows;
@@ -749,6 +753,10 @@ void *solveSudoku(void *params)
         do
         {
             changed = 0;
+            if (isSudokuSolved == 1)
+            {
+                return 0;
+            }
 
             // ### MARKUP ###
             int max_threads = 1;
@@ -872,6 +880,7 @@ void *solveSudoku(void *params)
 
     if (isSolvedV == 1)
     {
+        isSudokuSolved = 1;
         return 0;
     }
     else
@@ -959,8 +968,7 @@ void *solveSudoku(void *params)
                 {
                     // destroySudoku(sudoku, n);
                     ((solveSudokuParams *)params)->sudoku = (sudokuParams + n_params)->sudoku;
-                    // TODO: need to kill all other children threads
-                    return 0; // 1;
+                    return 0;
                 }
             }
             n_params++;
@@ -976,8 +984,7 @@ void *solveSudoku(void *params)
             {
                 // destroySudoku(sudoku, n);
                 ((solveSudokuParams *)params)->sudoku = (sudokuParams + n_params)->sudoku;
-                // TODO: need to kill all other children threads
-                return 0; // 1;
+                return 0;
             }
             else
             {
@@ -995,44 +1002,73 @@ void *solveSudoku(void *params)
 
 int main(void)
 {
-    int n = 0;
-    possRCG **possRows = NULL;
-    possRCG **possColumns = NULL;
-    possRCG **possGrids = NULL;
-    cell **sudoku = readSudoku(&n, &possRows, &possColumns, &possGrids, "../sudoku-examples/sudoku.txt");
+    DIR *d;
+    struct dirent *dir;
+    char *path = "../sudoku-examples/hex/";
+    for (int i=0; i<100;i++) {
+    d = opendir(path);
+    long total_time = 0;
+    int n_sudokus = 0;
+        printf("%d\n", i);
+        if (d)
+        {
+            while ((dir = readdir(d)) != NULL)
+            {
+                if (dir->d_name[0] == '.')
+                    continue;
 
-    if (sudoku == NULL)
-    {
-        fprintf(stderr, "Could not read sudoku\n");
-        return 1;
+                n_sudokus++;
+                char fileSudoku[100];
+                strcpy(fileSudoku, path);
+                strcat(fileSudoku, dir->d_name);
+                printf("%s\n", fileSudoku);
+                int n = 0;
+                possRCG **possRows = NULL;
+                possRCG **possColumns = NULL;
+                possRCG **possGrids = NULL;
+                cell **sudoku = readSudoku(&n, &possRows, &possColumns, &possGrids, fileSudoku);
+                isSudokuSolved = 0;
+                max_recursion_threads = MAX_RECURSION;
+
+                if (sudoku == NULL)
+                {
+                    fprintf(stderr, "Could not read sudoku\n");
+                    return 1;
+                }
+
+                clock_t begin = clock();
+
+                solveSudokuParams *sudokuParams = malloc(sizeof(solveSudokuParams));
+                sudokuParams->sudoku = sudoku;
+                sudokuParams->possRows = possRows;
+                sudokuParams->possColumns = possColumns;
+                sudokuParams->possGrids = possGrids;
+                sudokuParams->n = n;
+                solveSudoku(sudokuParams);
+
+                clock_t end = clock();
+                total_time += (end - begin);
+
+                if (sudokuParams->sudoku != NULL)
+                {
+                    printSudoku(sudokuParams->sudoku, possRows, possColumns, possGrids, n, 0);
+                    printf("Sudoku solved in %f seconds\n", (double)(end - begin) / CLOCKS_PER_SEC);
+                }
+                else
+                {
+                    printf("Sudoku not solved!\n");
+                }
+
+                destroySudoku(sudokuParams->sudoku, n);
+                destroyPossRCGArray(possRows, n);
+                destroyPossRCGArray(possColumns, n);
+                destroyPossRCGArray(possGrids, n);
+            }
+            closedir(d);
+            printf("############################################################\n");
+            printf("Solved %d sudokus in %f seconds\n", n_sudokus, (double)total_time / CLOCKS_PER_SEC);
+            printf("Average time: %f seconds\n", (double)total_time / CLOCKS_PER_SEC / n_sudokus);
+        }
     }
-
-    clock_t begin = clock();
-
-    solveSudokuParams *sudokuParams = malloc(sizeof(solveSudokuParams));
-    sudokuParams->sudoku = sudoku;
-    sudokuParams->possRows = possRows;
-    sudokuParams->possColumns = possColumns;
-    sudokuParams->possGrids = possGrids;
-    sudokuParams->n = n;
-    solveSudoku(sudokuParams);
-
-    clock_t end = clock();
-
-    if (sudokuParams->sudoku != NULL)
-    {
-        printSudoku(sudokuParams->sudoku, possRows, possColumns, possGrids, n, 0);
-        printf("Sudoku solved in %f seconds\n", (double)(end - begin) / CLOCKS_PER_SEC);
-    }
-    else
-    {
-        printf("Sudoku not solved!\n");
-    }
-
-    destroySudoku(sudokuParams->sudoku, n);
-    destroyPossRCGArray(possRows, n);
-    destroyPossRCGArray(possColumns, n);
-    destroyPossRCGArray(possGrids, n);
-
     return 0;
 }

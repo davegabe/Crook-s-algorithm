@@ -1,0 +1,6 @@
+{
+    "files.associations": {
+        "*.mos": "modelica",
+        "string.h": "c"
+    }
+}

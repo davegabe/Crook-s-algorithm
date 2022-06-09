@@ -3,7 +3,4 @@ Implementation of the [Crooks Algorithm](https://www.ams.org/notices/200904/tx09
 
 
 ## TODO
-- Test using different Sudoku sizes
 - Better single-threaded implementation (e.g. using hash tables, reduce for loops, etc.)
-- Multi-threading version
-
