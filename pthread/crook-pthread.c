@@ -9,7 +9,7 @@
 #include <ctype.h>
 #include "../listCount.h"
 #define MAX_RECURSION 0
-#define N_TIMES_TEST 1000 // define how many times test
+#define N_TIMES_TEST 20 // define how many times test
 
 int isSudokuSolved = 0;
 int max_recursion_threads = MAX_RECURSION;
@@ -761,7 +761,7 @@ void *solveSudoku(void *params)
             }
 
             // ### MARKUP ###
-            int max_threads = 1;
+            int max_threads = 2;
             int isValid = 1;
             pthread_t *threads = malloc(sizeof(pthread_t) * max_threads);
             for (int i = 0; i < max_threads; ++i)
@@ -783,14 +783,10 @@ void *solveSudoku(void *params)
                 pthread_join(threads[i], NULL);
             }
             free(threads);
-            if (isValid == 0) // if sudoku is not valid
-            {
-                ((solveSudokuParams *)params)->sudoku = NULL;
-                return 0;
-            }
 
             // ### SINGLETON ###
             // spawn threads solving singleton
+            // int max_threads = 2;
             max_threads = 2;
             int changed_singleton = 0;
             threads = malloc(sizeof(pthread_t) * max_threads);
@@ -887,14 +883,17 @@ void *solveSudoku(void *params)
     }
     else
     {
-        // pick a random cell with value 0
+        // pick first cell with value 0
         int r, c;
-        do
+        for (int index = 0; index < n * n; ++index)
         {
-            int index = rand() % (n * n);
             r = index / n;
             c = index % n;
-        } while ((sudoku[r] + c)->val != 0);
+            if ((sudoku[r] + c)->val == 0)
+            {
+                break;
+            }
+        }
 
         // for each possible value, try to solve the sudoku
         int len = lengthList((sudoku[r] + c)->poss);

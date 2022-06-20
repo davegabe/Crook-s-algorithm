@@ -9,7 +9,7 @@
                 "../list.c",
                 "../listCount.c",
                 "-o",
-                "crook.out",
+                "crook-pthread.out",
                 "-lpthread",
                 "-g",
                 "-Wall",
