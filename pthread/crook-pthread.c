@@ -7,8 +7,9 @@
 #include <time.h>
 #include <pthread.h>
 #include <ctype.h>
-#include "listCount.c"
-#define MAX_RECURSION 4
+#include "../listCount.h"
+#define MAX_RECURSION 0
+#define N_TIMES_TEST 1000 // define how many times test
 
 int isSudokuSolved = 0;
 int max_recursion_threads = MAX_RECURSION;
@@ -755,6 +756,7 @@ void *solveSudoku(void *params)
             changed = 0;
             if (isSudokuSolved == 1)
             {
+                // free(params);
                 return 0;
             }
 
@@ -764,7 +766,7 @@ void *solveSudoku(void *params)
             pthread_t *threads = malloc(sizeof(pthread_t) * max_threads);
             for (int i = 0; i < max_threads; ++i)
             {
-                markupParams *markup = malloc(sizeof(markupParams));
+                markupParams *markup = malloc(sizeof(markupParams)); // freed by the thread
                 markup->sudoku = sudoku;
                 markup->possRows = possRows;
                 markup->possColumns = possColumns;
@@ -794,7 +796,7 @@ void *solveSudoku(void *params)
             threads = malloc(sizeof(pthread_t) * max_threads);
             for (int i = 0; i < max_threads; ++i)
             {
-                solveSingletonParams *singletonParam = malloc(sizeof(solveSingletonParams));
+                solveSingletonParams *singletonParam = malloc(sizeof(solveSingletonParams)); // freed by the thread
                 singletonParam->sudoku = sudoku;
                 singletonParam->n = n;
                 singletonParam->n_thread = i;
@@ -819,7 +821,7 @@ void *solveSudoku(void *params)
         for (int i = 0; i < max_threads; ++i)
         {
             // spawn thread solving lone rangers on every row
-            loneRangerParams *loneranger = malloc(sizeof(loneRangerParams));
+            loneRangerParams *loneranger = malloc(sizeof(loneRangerParams)); // freed by the thread
             loneranger->sudoku = sudoku;
             loneranger->possRcg = possRows;
             loneranger->n = n;
@@ -829,7 +831,7 @@ void *solveSudoku(void *params)
             pthread_create(&threads[i * 3], NULL, solveLoneRangerR, (void *)loneranger);
 
             // spawn threads solving lone rangers on every column
-            loneranger = malloc(sizeof(loneRangerParams));
+            loneranger = malloc(sizeof(loneRangerParams)); // freed by the thread
             loneranger->sudoku = sudoku;
             loneranger->possRcg = possColumns;
             loneranger->n = n;
@@ -839,7 +841,7 @@ void *solveSudoku(void *params)
             pthread_create(&threads[i * 3 + 1], NULL, solveLoneRangerC, (void *)loneranger);
 
             // spawn threads solving lone rangers on every grid
-            loneranger = malloc(sizeof(loneRangerParams));
+            loneranger = malloc(sizeof(loneRangerParams)); // freed by the thread
             loneranger->sudoku = sudoku;
             loneranger->possRcg = possGrids;
             loneranger->n = n;
@@ -863,7 +865,7 @@ void *solveSudoku(void *params)
     pthread_t *threads = malloc(sizeof(pthread_t) * max_threads);
     for (int i = 0; i < max_threads; ++i)
     {
-        isSolvedParams *isSolvedParam = malloc(sizeof(isSolvedParams));
+        isSolvedParams *isSolvedParam = malloc(sizeof(isSolvedParams)); // freed by the thread
         isSolvedParam->sudoku = sudoku;
         isSolvedParam->n = n;
         isSolvedParam->isSolved = &isSolvedV;
@@ -910,28 +912,28 @@ void *solveSudoku(void *params)
             possRCG **possGridsClone = malloc(n * sizeof(possRCG *));
             pthread_t *threadsB = malloc(sizeof(pthread_t) * 4);
 
-            cloneSudokuParams *sudokuParam = malloc(sizeof(cloneSudokuParams));
+            cloneSudokuParams *sudokuParam = malloc(sizeof(cloneSudokuParams)); // freed by the thread
             sudokuParam->sudoku = sudoku;
             sudokuParam->n = n;
             sudokuParam->clone = sudokuClone;
             pthread_create(&threadsB[0], NULL, cloneSudoku, (void *)sudokuParam);
             // cloneSudoku((void *)sudokuParam);
 
-            possRCGParams *possRCGParam = malloc(sizeof(possRCGParams));
+            possRCGParams *possRCGParam = malloc(sizeof(possRCGParams)); // freed by the thread
             possRCGParam->possRcg = possRows;
             possRCGParam->n = n;
             possRCGParam->clone = possRowsClone;
             pthread_create(&threadsB[1], NULL, clonePossRCGArray, (void *)possRCGParam);
             // clonePossRCGArray((void *)possRCGParam);
 
-            possRCGParam = malloc(sizeof(possRCGParams));
+            possRCGParam = malloc(sizeof(possRCGParams)); // freed by the thread
             possRCGParam->possRcg = possColumns;
             possRCGParam->n = n;
             possRCGParam->clone = possColumnsClone;
             pthread_create(&threadsB[2], NULL, clonePossRCGArray, (void *)possRCGParam);
             // clonePossRCGArray((void *)possRCGParam);
 
-            possRCGParam = malloc(sizeof(possRCGParams));
+            possRCGParam = malloc(sizeof(possRCGParams)); // freed by the thread
             possRCGParam->possRcg = possGrids;
             possRCGParam->n = n;
             possRCGParam->clone = possGridsClone;
@@ -966,7 +968,10 @@ void *solveSudoku(void *params)
                 solveSudoku((void *)(sudokuParams + n_params));
                 if ((sudokuParams + n_params)->sudoku != NULL)
                 {
-                    // destroySudoku(sudoku, n);
+                    //  destroySudoku(sudoku, n);
+                    //  destroyPossRCGArray((sudokuParams + n_params)->possRows, n);
+                    //  destroyPossRCGArray((sudokuParams + n_params)->possColumns, n);
+                    //  destroyPossRCGArray((sudokuParams + n_params)->possGrids, n);
                     ((solveSudokuParams *)params)->sudoku = (sudokuParams + n_params)->sudoku;
                     return 0;
                 }
@@ -983,6 +988,8 @@ void *solveSudoku(void *params)
             if ((sudokuParams + i)->sudoku != NULL)
             {
                 // destroySudoku(sudoku, n);
+                // free(threads);
+                // free(thread_params);
                 ((solveSudokuParams *)params)->sudoku = (sudokuParams + n_params)->sudoku;
                 return 0;
             }
@@ -995,6 +1002,7 @@ void *solveSudoku(void *params)
         max_recursion_threads += n_threads;
         pthread_mutex_unlock(&max_recursion_threads_mutex);
         free(threads);
+        // free(thread_params);
         ((solveSudokuParams *)params)->sudoku = NULL;
     }
     return 0;
@@ -1005,10 +1013,12 @@ int main(void)
     DIR *d;
     struct dirent *dir;
     char *path = "../sudoku-examples/hex/";
-    for (int i=0; i<100;i++) {
-    d = opendir(path);
-    long total_time = 0;
-    int n_sudokus = 0;
+
+    for (int i = 0; i < N_TIMES_TEST; i++)
+    {
+        d = opendir(path);
+        long total_time = 0;
+        int n_sudokus = 0;
         printf("%d\n", i);
         if (d)
         {

@@ -1,12 +1,6 @@
 #include <stdio.h>
-#include "list.c"
-
-typedef struct listCount
-{
-    int val;
-    int count;
-    struct listCount *next;
-} listCount;
+#include <stdlib.h>
+#include "listCount.h"
 
 //Return a linked list with values from 1 to n and count of each node set to n
 listCount *getListCount(const int n)

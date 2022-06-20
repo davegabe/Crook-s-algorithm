@@ -6,14 +6,7 @@
 #include <math.h>
 #include <time.h>
 #include <ctype.h>
-#include "listCount.c"
-
-typedef struct cell
-{
-    int val;
-    list *poss;  // possible values list from 1 to n where n is size of sudoku
-    int changed; // 0 if not changed, 1 if changed, -1 if invalid
-} cell;
+#include "crook-unoptimized.h"
 
 // Read sudoku from file and return a 2D array of cells
 cell **readSudoku(int *n, listCount ***possRows, listCount ***possColumns, listCount ***possGrids, const char *filename)
@@ -252,6 +245,7 @@ int markupSudoku(cell **sudoku, listCount **possRows, listCount **possColumns, l
 
                         if ((sudoku[r] + c)->val == (sudoku[r] + k)->val) // not valid
                         {
+                            destroyList(&l);
                             return -1;
                         }
 
@@ -281,6 +275,7 @@ int markupSudoku(cell **sudoku, listCount **possRows, listCount **possColumns, l
 
                         if ((sudoku[r] + c)->val == (sudoku[k] + c)->val) // not valid
                         {
+                            destroyList(&l);
                             return -1;
                         }
 
@@ -316,6 +311,7 @@ int markupSudoku(cell **sudoku, listCount **possRows, listCount **possColumns, l
 
                             if ((sudoku[r] + c)->val == (sudoku[startI + k] + startJ + m)->val) // not valid
                             {
+                                destroyList(&l);
                                 return -1;
                             }
 
@@ -336,6 +332,7 @@ int markupSudoku(cell **sudoku, listCount **possRows, listCount **possColumns, l
                             }
                         }
                     }
+                    destroyList(&l);
                 }
                 else
                 {
@@ -602,7 +599,6 @@ int main(void)
         {
             if (dir->d_name[0] == '.')
                 continue;
-            
 
             n_sudokus++;
             char fileSudoku[100];
