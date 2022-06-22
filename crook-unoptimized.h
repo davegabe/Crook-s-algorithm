@@ -1,11 +1,13 @@
 #include "listCount.h"
 
+// Cell of a Sudoku
 typedef struct cell
 {
     int val;
     list *poss;  // possible values list from 1 to n where n is size of sudoku
     int changed; // 0 if not changed, 1 if changed, -1 if invalid
 } cell;
+
 cell **readSudoku(int *n, listCount ***possRows, listCount ***possColumns, listCount ***possGrids, const char *filename);
 cell **cloneSudoku(cell **sudoku, const int n);
 void destroySudoku(cell **sudoku, const int n);

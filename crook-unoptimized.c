@@ -505,7 +505,7 @@ int isSolved(cell **sudoku, listCount **possRows, listCount **possColumns, listC
     return 1;
 }
 
-// Try to solve the sudoku. Apply solveSingleton, solveLoneRangers, solveTwins repeating every time changes something. If it doesn't change anything, check if it's solved and return the solved sudoku. If it's not solved, try guessing a value and solve again. If sudoku is unsolvable, return NULL.
+// Try to solve the sudoku. Apply solveSingleton, solveLoneRangers repeating every time changes something. If it doesn't change anything, check if it's solved and return the solved sudoku. If it's not solved, try guessing a value and solve again. If sudoku is unsolvable, return NULL.
 cell **solveSudoku(cell **sudoku, listCount **possRows, listCount **possColumns, listCount **possGrids, int n)
 {
     srand(time(NULL));
