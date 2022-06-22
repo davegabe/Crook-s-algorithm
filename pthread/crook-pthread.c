@@ -9,6 +9,7 @@
 #include "crook-pthread.h"
 #define MAX_RECURSION 0
 #define N_TIMES_TEST 1 // define how many times test
+#define SUDOKU_PATH "../sudoku-examples/hex/"
 
 int isSudokuSolved = 0;
 int max_recursion_threads = MAX_RECURSION;
@@ -974,7 +975,7 @@ int main(void)
 {
     DIR *d;
     struct dirent *dir;
-    char *path = "../sudoku-examples/hex/";
+    char *path = SUDOKU_PATH;
 
     for (int i = 0; i < N_TIMES_TEST; i++)
     {
@@ -990,9 +991,8 @@ int main(void)
                     continue;
 
                 n_sudokus++;
-                char fileSudoku[100];
-                strcpy(fileSudoku, path);
-                strcat(fileSudoku, dir->d_name);
+                char fileSudoku[256];
+                sprintf(fileSudoku, "%s%s", path, dir->d_name);
                 printf("%s\n", fileSudoku);
                 int n = 0;
                 possRCG **possRows = NULL;
