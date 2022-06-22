@@ -7,7 +7,7 @@
 #include <time.h>
 #include <ctype.h>
 #include "crook-unoptimized.h"
-#define SUDOKU_PATH "../sudoku-examples/hex/"
+#define SUDOKU_PATH "./sudoku-hex/"
 
 // Read sudoku from file and return a 2D array of cells
 cell **readSudoku(int *n, listCount ***possRows, listCount ***possColumns, listCount ***possGrids, const char *filename)

@@ -7,9 +7,9 @@
 #include <time.h>
 #include <ctype.h>
 #include "crook-pthread.h"
-#define MAX_RECURSION 0
+#define MAX_RECURSION 2
 #define N_TIMES_TEST 1 // define how many times test
-#define SUDOKU_PATH "../sudoku-examples/hex/"
+#define SUDOKU_PATH "../sudoku-hex/"
 
 int isSudokuSolved = 0;
 int max_recursion_threads = MAX_RECURSION;
